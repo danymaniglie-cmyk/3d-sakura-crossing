@@ -670,7 +670,28 @@ function planter(x,z){
 
 /* ============ suolo ============ */
 const groundTex=grass.clone();groundTex.repeat.set(110,110);
-plane(440,440,M({map:groundTex}),0,-0.02,0);
+/* Il fiume corre incassato, come i corsi d'acqua urbani giapponesi: sponde di
+   cemento verticali e acqua parecchio sotto il piano stradale. Perche' si veda
+   il fondo, il prato non puo' essere un piano pieno — va bucato qui, alla
+   nascita, altrimenti coprirebbe tutto quello che sta sotto lo zero. */
+const FIUME={z:66, sem:22, y:-1.55, fondo:-3.4, da:-220, a:220};
+(function pratoBucato(){
+  const s=new THREE.Shape();
+  s.moveTo(-220,-220);s.lineTo(220,-220);s.lineTo(220,220);s.lineTo(-220,220);s.closePath();
+  const h=new THREE.Path();
+  const z0=-(FIUME.z-FIUME.sem), z1=-(FIUME.z+FIUME.sem);   // -z: la Shape viene ruotata
+  h.moveTo(-220,z0);h.lineTo(220,z0);h.lineTo(220,z1);h.lineTo(-220,z1);h.closePath();
+  s.holes.push(h);
+  const g=new THREE.ShapeGeometry(s,1);
+  // la ShapeGeometry non porta UV utili su questa scala: si ricavano dalle x/z
+  const pos=g.attributes.position, uv=[];
+  // stessa scala del piano che c'era prima: 440 m di lato con repeat 110 = una
+  // piastrella d'erba ogni 4 metri. Sbagliando qui il prato diventa moire'.
+  for(let i=0;i<pos.count;i++)uv.push(pos.getX(i)/440+.5,pos.getY(i)/440+.5);
+  g.setAttribute('uv',new THREE.BufferAttribute(new Float32Array(uv),2));
+  const m=new THREE.Mesh(g,M({map:groundTex}));
+  m.rotation.x=-Math.PI/2;m.position.y=-0.02;m.receiveShadow=true;scene.add(m);
+})();
 // da qui in poi tutto e' costruito attorno alla via principale stretta:
 // a fine costruzione il blocco viene allargato in un colpo solo (widenQuarter)
 const QUARTER_FROM=scene.children.length;
@@ -2283,7 +2304,171 @@ const WIDEN=0;                       // il quartiere storico resta com'era:
   GROUNDED.forEach(o=>{o.position.y=GROUND.heightAt(o.position.x,o.position.z);});
 })();
 
+/* ============================================================
+   IL FIUME
+   Un corso d'acqua urbano giapponese: canale incassato fra due sponde di
+   cemento, largo quarantaquattro metri, che taglia il quartiere da parte a
+   parte. La via principale lo scavalca su un ponte stradale.
+   L'acqua e' disegnata, non simulata: niente riflessi ne' rifrazione, ma tinte
+   piatte a fasce nette e onde tracciate a mano che scorrono. Un'acqua
+   fotografica in mezzo a una scena cel shaded stona piu' di una finta.
+   ============================================================ */
+const acquaTex=CT(512,512,(x,w,h)=>{
+  x.fillStyle='#6aa8c8';x.fillRect(0,0,w,h);            // tinta piena, niente gradiente
+  // seconda fascia piu' scura a chiazze morbide: da' profondita' restando piatta
+  x.fillStyle='#4f8cae';
+  for(let i=0;i<14;i++){
+    x.beginPath();
+    const cx=Math.random()*w, cy=Math.random()*h, r=40+Math.random()*90;
+    x.ellipse(cx,cy,r,r*.55,Math.random()*3,0,7);x.fill();
+  }
+  // creste: tratti bianchi spessi, pochi e grandi, con la codina — sono queste
+  // che leggono come "cartoon" e non i puntini fini
+  x.strokeStyle='#f2fbff';x.lineCap='round';
+  for(let i=0;i<26;i++){
+    const cx=Math.random()*w, cy=Math.random()*h, l=40+Math.random()*70;
+    x.lineWidth=5+Math.random()*4;
+    x.beginPath();x.moveTo(cx,cy);
+    x.bezierCurveTo(cx+l*.3,cy-9,cx+l*.7,cy+9,cx+l,cy-2);x.stroke();
+    x.lineWidth=3;
+    x.beginPath();x.moveTo(cx+l*.15,cy+13);x.quadraticCurveTo(cx+l*.4,cy+19,cx+l*.62,cy+12);x.stroke();
+  }
+});
+acquaTex.wrapS=acquaTex.wrapT=THREE.RepeatWrapping;
+
+/* ghiaia del fondo, che si intravede sotto l'acqua */
+const rivaTex=CT(256,256,(x,w,h)=>{
+  x.fillStyle='#9a8f78';x.fillRect(0,0,w,h);
+  noise(x,w,h,900,'#867c66',1,4);
+  noise(x,w,h,260,'#b3a88f',1,5);
+  for(let i=0;i<70;i++){
+    x.fillStyle=['#7d7466','#8b8375','#6f675c'][i%3];
+    x.beginPath();x.ellipse(Math.random()*w,Math.random()*h,2+Math.random()*4,
+      2+Math.random()*3,Math.random()*3,0,7);x.fill();
+  }
+},8,8);
+
+/* cemento delle sponde, con i giunti dei casseri e qualche colatura */
+const cementoTex=CT(256,256,(x,w,h)=>{
+  x.fillStyle='#c3c0b8';x.fillRect(0,0,w,h);
+  noise(x,w,h,420,'#b2afa6',1,5);
+  x.strokeStyle='rgba(120,118,110,.55)';x.lineWidth=2;
+  for(let i=0;i<=4;i++){x.beginPath();x.moveTo(i*w/4,0);x.lineTo(i*w/4,h);x.stroke();}
+  x.beginPath();x.moveTo(0,h*.5);x.lineTo(w,h*.5);x.stroke();
+  x.fillStyle='rgba(110,116,104,.28)';       // colature verdastre dal cordolo
+  for(let i=0;i<12;i++){
+    const cx=Math.random()*w;
+    x.fillRect(cx,0,3+Math.random()*7,h*(.3+Math.random()*.6));
+  }
+},18,3);
+
+const FIUME_G=(()=>{
+  const g=new THREE.Group();scene.add(g);
+  const L=FIUME.a-FIUME.da, W=FIUME.sem*2;
+
+  // fondo del canale
+  const fondo=plane(L,W,M({map:rivaTex}),0,FIUME.fondo,FIUME.z);
+  fondo.receiveShadow=true;g.add(fondo);
+
+  /* due lastre d'acqua sovrapposte che scorrono in verso opposto: il
+     disallineamento fra le creste fa il luccichio senza scrivere uno shader */
+  const strati=[], tinte=[];
+  [[0,1,10],[1,.55,7]].forEach(([i,op,rip])=>{
+    const t=acquaTex.clone();t.needsUpdate=true;
+    t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(L/44*rip/10,W/44*rip/10);
+    const mat=new THREE.MeshBasicMaterial({map:t,transparent:i>0,
+      opacity:op,depthWrite:i===0});
+    mat.userData.base=new THREE.Color(1,1,1);   // il colore lo mette applyDay
+    const m=plane(L,W,mat,0,FIUME.y+i*.02,FIUME.z);
+    m.layers.enable(1);          // fuori dal prepass: il contorno lo danno le sponde
+    g.add(m);strati.push(t);tinte.push(mat);
+  });
+
+  // schiuma lungo le sponde: una striscia bianca che pulsa, il segno piu'
+  // riconoscibile dell'acqua disegnata
+  const schiuma=[];
+  [-1,1].forEach(k=>{
+    const t=CT(512,64,(x,w,h)=>{
+      x.clearRect(0,0,w,h);
+      x.fillStyle='#ffffff';
+      for(let i=0;i<40;i++){
+        const cx=i*(w/40)+Math.random()*6, r=9+Math.random()*11;
+        x.beginPath();x.ellipse(cx,h*.55,r,r*.42,0,0,7);x.fill();
+      }
+      x.globalCompositeOperation='destination-out';
+      for(let i=0;i<30;i++){
+        const cx=Math.random()*w;
+        x.beginPath();x.ellipse(cx,h*.2,10+Math.random()*14,8,0,0,7);x.fill();
+      }
+    });
+    t.wrapS=THREE.RepeatWrapping;t.repeat.set(L/12,1);
+    const m=plane(L,3.0,new THREE.MeshBasicMaterial({map:t,transparent:true,
+      opacity:.85,depthWrite:false}),0,FIUME.y+.05,FIUME.z+k*(FIUME.sem-1.4));
+    m.layers.enable(1);g.add(m);schiuma.push(t);
+  });
+
+  /* sponde: muro verticale di cemento, cordolo in cima, ringhiera.
+     Il muro e' anche cio' che impedisce di cadere in acqua. */
+  [-1,1].forEach(k=>{
+    const zb=FIUME.z+k*FIUME.sem;
+    const muro=box(L,3.6,.9,M({map:cementoTex}),0,FIUME.fondo+1.8,zb+k*.45,g);
+    muro.receiveShadow=true;
+    box(L,.34,1.5,M({map:pave}),0,.15,zb+k*1.2,g);          // cordolo/camminamento
+    for(let x=FIUME.da+3;x<FIUME.a;x+=3.2){
+      if(Math.abs(x)<9)continue;                              // varco del ponte
+      cyl(.05,.05,1.0,C(0x9aa3ab),x,.8,zb+k*.62,6,g);
+      GROUND.addWall(x,zb+k*.62,.4,.4);
+    }
+    const cor=box(L,.09,.09,C(0x9aa3ab),0,1.28,zb+k*.62,g);
+    GROUND.addPlat(0,zb+k*1.2,L,1.5,.32);
+    /* Barriera contro la caduta nel canale, ma spezzata sul varco del ponte:
+       una parete continua avrebbe murato la via principale sulle due rive,
+       chiudendo il quartiere invece di collegarlo. */
+    [[FIUME.da,-11],[11,FIUME.a]].forEach(([x0,x1])=>
+      GROUND.addWall((x0+x1)/2,zb+k*.62,x1-x0,.5));
+  });
+
+  /* Il ponte della via principale. L'asfalto e i marciapiedi sono piani lunghi
+     quattrocento metri che passavano sopra il canale sospesi sul niente: qui si
+     costruisce cio' che li regge, non la carreggiata, che c'e' gia'. */
+  const PB={sem:FIUME.sem+4.5, larg:23};
+  const solet=box(PB.larg,.62,PB.sem*2,M({map:cementoTex}),0,-.33,FIUME.z,g);
+  solet.receiveShadow=true;
+  for(let k=-1;k<=1;k+=2){                      // travi longitudinali sotto
+    [0,1].forEach(j=>box(1.0,.85,PB.sem*2,M({map:cementoTex}),
+      k*(3.2+j*4.4),-1.0,FIUME.z,g));
+  }
+  [-1,1].forEach(k=>{                           // pile in acqua, a cavalletto
+    const zp=FIUME.z+k*(FIUME.sem*.52);
+    box(PB.larg-3,1.0,2.2,M({map:cementoTex}),0,-1.8,zp,g);
+    [-1,1].forEach(j=>{
+      const pil=cyl(1.05,1.25,FIUME.fondo*-1+1.4,M({map:cementoTex}),
+        j*6.4,(FIUME.fondo+1.0)/2-.6,zp,10,g);
+      pil.receiveShadow=true;
+    });
+  });
+  [-1,1].forEach(k=>{                           // parapetti del ponte
+    const x=k*(PB.larg/2-.6);
+    box(.34,.95,PB.sem*2,M({map:cementoTex}),x,.60,FIUME.z,g);
+    box(.5,.14,PB.sem*2,C(0x8d95a0),x,1.14,FIUME.z,g);
+    GROUND.addWall(x,FIUME.z,.5,PB.sem*2);
+  });
+  // sotto il ponte l'acqua resta, ma niente schiuma: la si spezza sul varco
+  return {g,strati,schiuma,tinte};
+})();
+
+/* La corrente: due lastre che scorrono a velocita' diverse nello stesso verso,
+   piu' la schiuma di sponda che avanza piu' piano. Il disallineamento fra i due
+   disegni fa il luccichio, e costa due somme per frame invece di uno shader. */
+function updateFiume(t){
+  FIUME_G.strati[0].offset.x=-t*.020;
+  FIUME_G.strati[1].offset.x=-t*.034;
+  FIUME_G.strati[1].offset.y=Math.sin(t*.21)*.02;
+  FIUME_G.schiuma.forEach((s,i)=>{s.offset.x=-t*.012-i*.5;});
+}
+
 function updateLife(dt,t){
+  updateFiume(t);
   // passanti
   npcs.forEach(n=>{
     if(n.idle){
@@ -2681,6 +2866,18 @@ function applyDay(){
   lerpSRGB(bounce.color,a.sun,b.sun,k);
   bounce.intensity=(a.si+(b.si-a.si)*k)*.30;
   sunH=a.y+(b.y-a.y)*k;
+  /* L'acqua e' dipinta con un materiale che non riceve luce — cosi' resta piatta
+     e cartoon — ma per la stessa ragione restava ciano da mezzogiorno mentre il
+     resto della scena era al tramonto. La si tinge a mano col colore del cielo:
+     un fiume rispecchia cio' che ha sopra, ed e' esattamente quel legame che
+     mancava perche' sembrasse parte della stessa illustrazione.  */
+  if(typeof FIUME_G!=='undefined'){
+    const cielo=lerpSRGB(new THREE.Color(),a.sky,b.sky,k);
+    const forza=a.si+(b.si-a.si)*k;
+    FIUME_G.tinte.forEach(m=>{
+      m.color.copy(m.userData.base).lerp(cielo,.72).multiplyScalar(.62+.16*Math.min(1.4,forza));
+    });
+  }
   const hh=Math.floor(G.time*24),mm=Math.floor((G.time*24%1)*60);
   $clock.textContent=`Giorno ${G.day} · ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')} · ${a.n}`;
 }
