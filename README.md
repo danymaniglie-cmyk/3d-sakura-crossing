@@ -3,6 +3,10 @@
 A Japanese neighbourhood at dusk, in 3D, that you can walk around. Cartoon /
 cel-shaded, cut in two by a railway with a level crossing.
 
+![Walking through Sakura Crossing](docs/anteprima.gif)
+
+<!-- VIDEO -->
+
 **One HTML file. No build step. No image assets. No CDN.** Every texture — roof
 tiles, plaster, asphalt, the 2048×512 train livery with its lit windows and
 passenger silhouettes — is painted onto a canvas at load time. That is why the
