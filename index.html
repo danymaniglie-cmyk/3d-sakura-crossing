@@ -1918,9 +1918,20 @@ function makeHuman(o){
   chest.scale.set(1,.72,.78);chest.position.y=.46;chest.castShadow=true;hips.add(chest);ink(chest,1.05);
   const pelvis=new THREE.Mesh(new THREE.SphereGeometry(.17,12,10),botM);
   pelvis.scale.set(1,.7,.85);pelvis.position.y=.03;pelvis.castShadow=true;hips.add(pelvis);ink(pelvis,1.06);
-  // colletto
-  const collar=new THREE.Mesh(new THREE.TorusGeometry(.1,.028,6,14),C(o.collar||0x2b5fc4));
-  collar.rotation.x=Math.PI/2;collar.position.y=.6;hips.add(collar);
+  /* colletto alla marinara: e' la sagoma che rende leggibile la divisa.
+     Un anello attorno al collo da lontano legge come una sciarpa; servono la
+     pala sulle spalle, le due bande sul petto e il fiocco. */
+  const colM=C(o.collar||0x2b5fc4);
+  const pala=new THREE.Mesh(new THREE.BoxGeometry(.34,.03,.2),colM);
+  pala.position.set(0,.585,-.075);pala.rotation.x=-.22;hips.add(pala);ink(pala,1.05);
+  [-1,1].forEach(k=>{                       // bande che scendono a V sul petto
+    const b=new THREE.Mesh(new THREE.BoxGeometry(.075,.24,.03),colM);
+    b.position.set(k*.075,.5,.15);b.rotation.set(-.12,0,k*.2);hips.add(b);
+  });
+  const nodo=new THREE.Mesh(new THREE.BoxGeometry(.07,.06,.04),C(o.tie||0xd8556f));
+  nodo.position.set(0,.4,.17);hips.add(nodo);
+  const cinta=new THREE.Mesh(new THREE.CylinderGeometry(.153,.158,.06,14),C(o.belt||0x2f3550));
+  cinta.position.y=.055;hips.add(cinta);ink(cinta,1.05);   // vita segnata
   if(o.skirt){
     const sk=new THREE.Mesh(new THREE.ConeGeometry(.32,.42,16,1,true),botM);
     sk.position.y=-.06;sk.castShadow=true;hips.add(sk);
@@ -1935,14 +1946,23 @@ function makeHuman(o){
 
   /* collo e testa */
   const neck=limb(.06,.07,.12,skinM,hips,.66);
-  const headP=new THREE.Group();headP.position.y=.74;hips.add(headP);
+  /* Testa piu' grande: il corpo stava a circa sei teste, proporzione da figura
+     realistica. In un mondo cartoon, e visto da cinque metri, non si legge.
+     A ~4.8 teste la sagoma si riconosce a distanza e l'insieme diventa cartoon
+     per costruzione, non per colore. */
+  const headP=new THREE.Group();headP.position.y=.78;headP.scale.setScalar(1.26);hips.add(headP);
   const face=faceTex({skin:o.skinCss||'#f7dcc6',eye:o.eye||'#4a6b9c',brow:o.browCss,smile:o.smile});
   const head=new THREE.Mesh(new THREE.SphereGeometry(.145,20,16),M({map:face}));
   head.rotation.y=-Math.PI/2;head.scale.set(1,1.08,.98);head.castShadow=true;headP.add(head);ink(head,1.045);
   // capelli: calotta + nuca aperta sul viso
   const cap=new THREE.Mesh(new THREE.SphereGeometry(.157,18,14,0,6.3,0,1.05),hairM);
   cap.position.y=.004;cap.castShadow=true;headP.add(cap);ink(cap,1.05);
-  const back=new THREE.Mesh(new THREE.SphereGeometry(.155,18,14,Math.PI+.95,2*Math.PI-1.9,0,2.1),hairM);
+  // L'apertura della capigliatura va centrata su +z, dove guarda il volto.
+  // La sfera della faccia e' ruotata di -PI/2 per portare la UV davanti, ma i
+  // capelli pendono da headP e quella rotazione non la vedono: lasciando il buco
+  // a phi=PI finiva sull'asse +x e da davanti si vedevano capelli fino alla bocca.
+  const VISO=Math.PI/2;                        // phi che guarda in avanti
+  const back=new THREE.Mesh(new THREE.SphereGeometry(.155,18,14,VISO+.95,2*Math.PI-1.9,0,2.1),hairM);
   back.castShadow=true;headP.add(back);
   // ciocche della frangia
   for(let i=0;i<5;i++){
@@ -1975,10 +1995,14 @@ function makeHuman(o){
     const sh=new THREE.Group();sh.position.set(side*.21,.5,0);hips.add(sh);
     joint(.062,topM,sh,0);
     limb(.055,.048,.28,o.bare?skinM:topM,sh,-.16);
+    if(!o.bare){                    // bordo manica: senza, manica bianca e pelle
+      const cf=new THREE.Mesh(new THREE.CylinderGeometry(.052,.052,.035,12),colM);
+      cf.position.y=-.29;sh.add(cf);   // chiara si fondevano in un bastoncino
+    }
     const el=new THREE.Group();el.position.y=-.3;sh.add(el);
     joint(.046,o.bare?skinM:topM,el,0);
     limb(.045,.04,.26,skinM,el,-.14);
-    const hand=joint(.05,skinM,el,-.29);hand.scale.set(1,1.1,.8);
+    const hand=joint(.058,skinM,el,-.29);hand.scale.set(1,1.15,.72);ink(hand,1.07);
     return {sh,el};
   }
   const aL=arm(-1),aR=arm(1);

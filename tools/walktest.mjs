@@ -14,7 +14,9 @@ await page.goto('http://127.0.0.1:5191/index.html', { waitUntil: 'load', timeout
 const wait = ms => new Promise(r => setTimeout(r, ms));
 await wait(2500);
 await page.click('#go'); await wait(600);
-await page.click('#skip'); await wait(1200);
+// The intro was removed, so #skip may not exist any more: click it only if it does.
+await page.evaluate(() => document.getElementById('skip')?.click());
+await wait(1200);
 
 const results = [];
 
