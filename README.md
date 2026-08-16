@@ -82,9 +82,33 @@ you change them without knowing why:
 - Three toon bands, `[76, 150, 255]`. Four softens the shading and the cartoon
   read disappears.
 
+## Where this is going
+
+**The goal is mobile.** A neighbourhood you can walk around on a phone, in the
+browser, with no install. The touch controls are already in the source — a
+thumbstick, a run button, a first/third person toggle, a rotate-to-landscape
+prompt — so this is a matter of performance work rather than starting over:
+the renderer draws the scene four times per frame, which a mid-range phone
+will not sit still for at native resolution. Reduced internal resolution, no
+MSAA, smaller shadow maps. The look survives; the sharpness is what gives.
+
+After that, in no particular order: districts with curving streets, interiors
+you can walk into, traffic on the expressway deck, sound beyond the crossing
+bell.
+
 ## Contributing
 
-Contributions very welcome — see below.
+**Contributions are very welcome — that is the whole reason this is public.**
+
+Building it alone takes far too long. Every district, every building type,
+every system is days of work, and it is better off growing in the open than
+sitting half-finished on one machine. Small pull requests are welcome; so is
+opening an issue just to say what looks wrong.
+
+You do not need to know the whole codebase. It is one file in labelled
+sections: pick one and work inside it. [CONTRIBUTING.md](CONTRIBUTING.md) lists
+good places to start and, more usefully, the traps that have already cost
+somebody an afternoon — so nobody pays for them twice.
 
 ## Credits
 

@@ -1,9 +1,28 @@
 # Contributing
 
+**Every contribution is welcome**, from a one-line fix to a whole district.
+There is no review bar to clear and no style test to pass: if it makes the
+neighbourhood better, it goes in. Opening an issue to say "this looks wrong"
+is a contribution too.
+
+
 The scene is one file, `index.html`, organised in labelled sections. Pick one
 and work inside it — most additions do not touch anything else.
 
-## Good first areas
+## The current goal: mobile
+
+Making this run well on a phone is the priority. The touch controls already
+exist in the source; what does not exist is the performance work. The renderer
+draws the scene four times per frame — normals and depth, colour, bloom,
+composition — which is fine on a desktop GPU and far too much for a mid-range
+phone at native resolution. Reduced pixel ratio, MSAA off, smaller shadow maps,
+bloom at a lower fraction. The cel look survives all of that; only sharpness
+gives, and on a six-inch screen you will not miss it.
+
+If you have a phone and twenty minutes, just running it and reporting the
+frame rate and the model is genuinely useful.
+
+## Other good first areas
 
 - **A new district.** Streets that curve, blocks with courtyards. The rule is
   no cloning: two houses with the same footprint should still look different.
