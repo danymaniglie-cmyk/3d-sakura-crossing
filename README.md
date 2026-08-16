@@ -93,4 +93,6 @@ debugged and extended by hand.
 
 ## Licence
 
-MIT.
+**GPL-3.0.** Fork it, change it, ship it — but derivative work stays under the
+same licence and stays open. That is the point: this is meant to be built on in
+the open, not quietly absorbed.
