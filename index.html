@@ -1899,8 +1899,19 @@ function joint(r,mat,parent,y){
   const m=new THREE.Mesh(new THREE.SphereGeometry(r,10,8),mat);
   m.position.y=y;m.castShadow=true;parent.add(m);return m;
 }
+/* Corporature.
+   Finora ogni abitante era lo stesso identico corpo ridipinto: a colori diversi
+   restavano sei bambole uguali. Questi cinque numeri cambiano la costruzione,
+   non la taglia — scalare tutto uniformemente fa solo persone piccole, non un
+   bambino ne' un anziano. Un bambino ha la testa grande rispetto al corpo, un
+   uomo robusto ha spalle larghe e torace pieno, una vecchia sta curva. */
 function makeHuman(o){
   o=o||{};
+  const TESTA=o.testa||1,      // testa rispetto al corpo: >1 infantile, <1 adulta
+        SPALLE=o.spalle||1,    // larghezza delle spalle
+        TORACE=o.torace||1,    // pienezza di busto e bacino
+        ARTI=o.arti||1,        // grossezza di braccia e gambe
+        CURVA=o.curva||0;      // busto piegato in avanti, per l'eta'
   const skinM=M({map:skinTex,color:o.skin||0xf7dcc6});
   const topM=M({map:clothTex,color:o.top||0xf6f2ec});
   const botM=M({map:clothTex,color:o.bottom||0x3d4668});
@@ -1920,7 +1931,7 @@ function makeHuman(o){
     // il profilo va dato dal basso verso l'alto: al contrario le facce nascono
     // rivoltate e il corpo diventa trasparente, con dentro la cartella
     const g=new THREE.LatheGeometry(prof.slice().reverse()
-      .map(p=>new THREE.Vector2(p[0],p[1])),20);
+      .map(p=>new THREE.Vector2(p[0]*TORACE,p[1])),20);
     const m=new THREE.Mesh(g,mat);m.scale.z=pz;m.castShadow=true;m.receiveShadow=true;
     hips.add(m);return m;
   }
@@ -1933,7 +1944,7 @@ function makeHuman(o){
      Un anello attorno al collo da lontano legge come una sciarpa; servono la
      pala sulle spalle, le due bande sul petto e il fiocco. */
   const colM=C(o.collar||0x2b5fc4);
-  const pala=new THREE.Mesh(new THREE.BoxGeometry(.34,.03,.2),colM);
+  const pala=new THREE.Mesh(new THREE.BoxGeometry(.34*SPALLE,.03,.2),colM);
   pala.position.set(0,.585,-.075);pala.rotation.x=-.22;hips.add(pala);ink(pala,1.05);
   [-1,1].forEach(k=>{                       // bande che scendono a V sul petto
     const b=new THREE.Mesh(new THREE.BoxGeometry(.075,.24,.03),colM);
@@ -1961,7 +1972,7 @@ function makeHuman(o){
      realistica. In un mondo cartoon, e visto da cinque metri, non si legge.
      A ~4.8 teste la sagoma si riconosce a distanza e l'insieme diventa cartoon
      per costruzione, non per colore. */
-  const headP=new THREE.Group();headP.position.y=.78;headP.scale.setScalar(1.26);hips.add(headP);
+  const headP=new THREE.Group();headP.position.y=.78;headP.scale.setScalar(1.26*TESTA);hips.add(headP);
   const face=faceTex({skin:o.skinCss||'#f7dcc6',eye:o.eye||'#4a6b9c',brow:o.browCss,smile:o.smile});
   /* Una sfera non e' una testa: manca la mascella, e senza mento il volto legge
      come un pallone dipinto. Si stringe la meta' inferiore lasciando intatta
@@ -2024,17 +2035,17 @@ function makeHuman(o){
      esattamente quello dell'estremita' che tocca, cosi' l'arto sembra continuo. */
   function arm(side){
     const manica=o.bare?skinM:topM;
-    const sh=new THREE.Group();sh.position.set(side*.185,.487,0);hips.add(sh);
-    const dl=joint(.066,manica,sh,0);dl.scale.set(1,1.15,1);   // deltoide, non spigolo
-    limb(.066,.050,.30,manica,sh,-.165);
+    const sh=new THREE.Group();sh.position.set(side*.185*SPALLE,.487,0);hips.add(sh);
+    const dl=joint(.066*ARTI,manica,sh,0);dl.scale.set(1,1.15,1);   // deltoide, non spigolo
+    limb(.066*ARTI,.050*ARTI,.30,manica,sh,-.165);
     if(!o.bare){                    // bordo manica: senza, manica bianca e pelle
       const cf=new THREE.Mesh(new THREE.CylinderGeometry(.052,.052,.035,12),colM);
       cf.position.y=-.30;sh.add(cf);   // chiara si fondevano in un bastoncino
     }
     const el=new THREE.Group();el.position.y=-.32;sh.add(el);
-    joint(.050,skinM,el,0);
-    limb(.050,.040,.27,skinM,el,-.15);
-    const polso=joint(.040,skinM,el,-.285);
+    joint(.050*ARTI,skinM,el,0);
+    limb(.050*ARTI,.040*ARTI,.27,skinM,el,-.15);
+    const polso=joint(.040*ARTI,skinM,el,-.285);
     const hand=new THREE.Mesh(new THREE.SphereGeometry(.052,10,8),skinM);
     hand.scale.set(.78,1.25,.55);hand.position.y=-.335;el.add(hand);   // palmo piatto
     const poll=new THREE.Mesh(new THREE.SphereGeometry(.021,7,6),skinM);
@@ -2049,13 +2060,13 @@ function makeHuman(o){
     // con la gonna la coscia e' pelle: lasciandola del colore dei pantaloni,
     // fra orlo e calzino restava una fascia scura che legge come collant
     const cosciaM=o.skirt?skinM:botM;
-    const hp=new THREE.Group();hp.position.set(side*.098,-.02,0);hips.add(hp);
-    joint(.084,botM,hp,0);
-    limb(.084,.064,.42,cosciaM,hp,-.23);
+    const hp=new THREE.Group();hp.position.set(side*.098*TORACE,-.02,0);hips.add(hp);
+    joint(.084*ARTI,botM,hp,0);
+    limb(.084*ARTI,.064*ARTI,.42,cosciaM,hp,-.23);
     const kn=new THREE.Group();kn.position.y=-.44;hp.add(kn);
-    joint(.064,calza,kn,0);
-    limb(.064,.048,.40,calza,kn,-.21);
-    joint(.048,calza,kn,-.405);                       // caviglia
+    joint(.064*ARTI,calza,kn,0);
+    limb(.064*ARTI,.048*ARTI,.40,calza,kn,-.21);
+    joint(.048*ARTI,calza,kn,-.405);                  // caviglia
     /* La scarpa era una scatola: da vicino e' l'unico spigolo vivo del corpo.
        Un ellissoide allungato in avanti da' punta e collo del piede. */
     const ft=new THREE.Mesh(new THREE.SphereGeometry(.078,12,9),shoeM);
@@ -2078,17 +2089,27 @@ function makeHuman(o){
     sc.rotation.x=Math.PI/2;sc.position.y=.62;hips.add(sc);
   }
 
+  if(CURVA){
+    hips.rotation.x=CURVA;              // il busto si china
+    headP.rotation.x=-CURVA*.78;        // ma lo sguardo resta sulla strada
+  }
+  // quota di riposo del bacino: chi sta curvo perde qualche centimetro, e pose()
+  // deve ripartire da qui invece che dal .92 fisso, o a ogni frame lo rialza
+  const BASEY=.92-CURVA*.10;
+  hips.position.y=BASEY;
   const H={root,hips,headP,legL:lL.hp,legR:lR.hp,kneeL:lL.kn,kneeR:lR.kn,
     armL:aL.sh,armR:aR.sh,elbL:aL.el,elbR:aR.el,
     pose(t,amp){
       const a=amp===undefined?1:amp;
       const s=Math.sin(t)*.62*a, c=Math.cos(t);
-      H.legL.rotation.x=s;H.legR.rotation.x=-s;
+      // le gambe pendono dal bacino: se il busto si piega in avanti ruotano con
+      // lui e i piedi finiscono dietro. Si sottrae la curva per rimetterle a piombo.
+      H.legL.rotation.x=s-CURVA;H.legR.rotation.x=-s-CURVA;
       H.kneeL.rotation.x=-Math.max(0,Math.sin(t+1.1))*.95*a;
       H.kneeR.rotation.x=-Math.max(0,Math.sin(t+1.1+Math.PI))*.95*a;
       H.armL.rotation.x=-s*.72;H.armR.rotation.x=s*.72;
       H.elbL.rotation.x=-Math.abs(s)*.35-.12;H.elbR.rotation.x=-Math.abs(s)*.35-.12;
-      H.hips.position.y=.92+Math.abs(Math.sin(t))*.035*a;
+      H.hips.position.y=BASEY+Math.abs(Math.sin(t))*.035*a;
       H.hips.rotation.z=Math.sin(t)*.03*a;
       H.hips.rotation.y=Math.sin(t)*.05*a;
       H.headP.rotation.z=-Math.sin(t)*.03*a;
@@ -2119,20 +2140,30 @@ function person(x,z,dir,look,info){
 person(-7.1,-20,1,{skin:0xf6dcc8,skinCss:'#f6dcc8',eye:'#4a6b9c',top:0xf6f2ec,bottom:0x3d4668,
   collar:0x2b3f6b,skirt:true,socks:0xf2efe8,shoe:0x2f2b36,hair:0x3b2f38,pony:true,bag:0xd8607f},
   {id:'yuki',name:'Yuki',role:'studentessa'});
+// donna adulta: piu' alta della studentessa, corporatura asciutta
 person(7.1,12,-1,{skin:0xf8e0cc,skinCss:'#f8e0cc',eye:'#7a5b3f',top:0xe9a7b8,bottom:0x5b4a6b,
-  collar:0xc8657f,skirt:true,apron:0xf4ead8,shoe:0x8a6a55,hair:0x2f2a33,bun:true},
+  collar:0xc8657f,skirt:true,apron:0xf4ead8,shoe:0x8a6a55,hair:0x2f2a33,bun:true,
+  scale:1.02,testa:.95,spalle:.98,torace:.97,arti:.96},
   {id:'mei',name:'Mei',role:'fioraia'});
+// bambino: non un adulto rimpicciolito. Testa grande, spalle strette, arti sottili
 person(-7.4,8,-1,{skin:0xf7d9bd,skinCss:'#f7d9bd',eye:'#4f7f5f',top:0xa8c3e0,bottom:0x4a4f5e,
-  collar:0xe8b04a,shoe:0xd85a4a,hair:0x6b4a3a,scale:.86,bag:0xe8b04a,smile:true},
+  collar:0xe8b04a,shoe:0xd85a4a,hair:0x6b4a3a,scale:.80,bag:0xe8b04a,smile:true,
+  testa:1.22,spalle:.86,torace:.92,arti:.90},
   {id:'haru',name:'Haru',role:'ragazzino'});
+// uomo robusto: spalle larghe, torace pieno, testa piccola rispetto al corpo
 person(7.4,-4,1,{skin:0xf2cfae,skinCss:'#f2cfae',eye:'#5a4632',top:0xf2f0e8,bottom:0x3c5a4a,
-  collar:0xb8563f,apron:0xe8e2d2,shoe:0x4a4038,hair:0x3a2f2c,hat:0xf2f0e8,bare:true},
+  collar:0xb8563f,apron:0xe8e2d2,shoe:0x4a4038,hair:0x3a2f2c,hat:0xf2f0e8,bare:true,
+  scale:1.07,testa:.90,spalle:1.20,torace:1.16,arti:1.18},
   {id:'kenji',name:'Kenji',role:'panettiere'});
+// anziana: bassa, curva in avanti, spalle strette
 person(-6.9,-3.2,1,{skin:0xf0d8c4,skinCss:'#f0d8c4',eye:'#6a6a72',brow:'#9a9098',browCss:'#9a9098',
-  top:0xcfc7bb,bottom:0x6b6257,collar:0x8f8578,skirt:true,shoe:0x5a5048,hair:0xd8d3cc,bun:true,scarf:0xb8908f},
+  top:0xcfc7bb,bottom:0x6b6257,collar:0x8f8578,skirt:true,shoe:0x5a5048,hair:0xd8d3cc,bun:true,scarf:0xb8908f,
+  scale:.87,testa:1.02,spalle:.88,torace:1.04,arti:.94,curva:.30},
   {id:'sato',name:'Nonna Sato',role:'vicina',idle:true});
+// uomo asciutto e alto
 person(-10.6,3.4,1,{skin:0xeed3b6,skinCss:'#eed3b6',eye:'#3f4a5f',top:0x2f4f7a,bottom:0x22304a,
-  collar:0x18243a,shoe:0x22242c,hair:0x2a2530,hat:0x2f4f7a,smile:false},
+  collar:0x18243a,shoe:0x22242c,hair:0x2a2530,hat:0x2f4f7a,smile:false,
+  scale:1.05,testa:.92,spalle:1.10,torace:.98,arti:1.02},
   {id:'tanaka',name:'Tanaka',role:'casellante',idle:true});
 
 /* gatto sul muretto */
