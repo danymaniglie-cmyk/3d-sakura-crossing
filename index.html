@@ -1911,13 +1911,24 @@ function makeHuman(o){
 
   const hips=new THREE.Group();hips.position.y=.92;root.add(hips);
 
-  /* busto affusolato */
-  const torso=new THREE.Mesh(new THREE.CylinderGeometry(.19,.15,.5,14),topM);
-  torso.position.y=.27;torso.castShadow=true;hips.add(torso);ink(torso,1.05);
-  const chest=new THREE.Mesh(new THREE.SphereGeometry(.2,14,12),topM);
-  chest.scale.set(1,.72,.78);chest.position.y=.46;chest.castShadow=true;hips.add(chest);ink(chest,1.05);
-  const pelvis=new THREE.Mesh(new THREE.SphereGeometry(.17,12,10),botM);
-  pelvis.scale.set(1,.7,.85);pelvis.position.y=.03;pelvis.castShadow=true;hips.add(pelvis);ink(pelvis,1.06);
+  /* Busto rivoluzionato da un profilo, non un cilindro con una palla sopra.
+     Un tubo a raggio costante non ha spalle ne' vita: da qualunque angolo legge
+     come un barattolo. Il profilo passa per collo, spalla, torace, vita e fianco,
+     e la rivoluzione lo rende continuo. Schiacciato in z perche' un torso umano
+     e' piu' largo che profondo: una sezione circolare legge subito come robot. */
+  function rivolta(prof,mat,pz){
+    // il profilo va dato dal basso verso l'alto: al contrario le facce nascono
+    // rivoltate e il corpo diventa trasparente, con dentro la cartella
+    const g=new THREE.LatheGeometry(prof.slice().reverse()
+      .map(p=>new THREE.Vector2(p[0],p[1])),20);
+    const m=new THREE.Mesh(g,mat);m.scale.z=pz;m.castShadow=true;m.receiveShadow=true;
+    hips.add(m);return m;
+  }
+  const busto=rivolta([[.048,.645],[.105,.612],[.152,.556],[.176,.487],[.181,.408],
+                       [.170,.318],[.155,.232],[.148,.168],[.158,.098],[.163,.052],
+                       [.140,.020],[.02,.006]],topM,.79);
+  const bacino=rivolta([[.02,.086],[.132,.074],[.166,.016],[.172,-.040],
+                        [.150,-.098],[.092,-.132],[.02,-.146]],botM,.86);
   /* colletto alla marinara: e' la sagoma che rende leggibile la divisa.
      Un anello attorno al collo da lontano legge come una sciarpa; servono la
      pala sulle spalle, le due bande sul petto e il fiocco. */
@@ -1952,7 +1963,22 @@ function makeHuman(o){
      per costruzione, non per colore. */
   const headP=new THREE.Group();headP.position.y=.78;headP.scale.setScalar(1.26);hips.add(headP);
   const face=faceTex({skin:o.skinCss||'#f7dcc6',eye:o.eye||'#4a6b9c',brow:o.browCss,smile:o.smile});
-  const head=new THREE.Mesh(new THREE.SphereGeometry(.145,20,16),M({map:face}));
+  /* Una sfera non e' una testa: manca la mascella, e senza mento il volto legge
+     come un pallone dipinto. Si stringe la meta' inferiore lasciando intatta
+     quella superiore, cosi' la calotta resta tonda e nasce il mento.
+     Si tocca la posizione dei vertici, non le UV: occhi e bocca restano dove
+     stanno, e sotto l'equatore il viso si affusola invece di gonfiarsi. */
+  function mandibola(g,r,k){
+    const p=g.attributes.position;
+    for(let i=0;i<p.count;i++){
+      const y=p.getY(i);
+      if(y>=0)continue;
+      const t=Math.min(1,-y/r), s=1-(1-k)*t*t;
+      p.setX(i,p.getX(i)*s);p.setZ(i,p.getZ(i)*s);
+    }
+    p.needsUpdate=true;g.computeVertexNormals();return g;
+  }
+  const head=new THREE.Mesh(mandibola(new THREE.SphereGeometry(.145,20,16),.145,.60),M({map:face}));
   head.rotation.y=-Math.PI/2;head.scale.set(1,1.08,.98);head.castShadow=true;headP.add(head);ink(head,1.045);
   // capelli: calotta + nuca aperta sul viso
   const cap=new THREE.Mesh(new THREE.SphereGeometry(.157,18,14,0,6.3,0,1.05),hairM);
@@ -1962,7 +1988,9 @@ function makeHuman(o){
   // capelli pendono da headP e quella rotazione non la vedono: lasciando il buco
   // a phi=PI finiva sull'asse +x e da davanti si vedevano capelli fino alla bocca.
   const VISO=Math.PI/2;                        // phi che guarda in avanti
-  const back=new THREE.Mesh(new THREE.SphereGeometry(.155,18,14,VISO+.95,2*Math.PI-1.9,0,2.1),hairM);
+  // la nuca scende sotto l'equatore: va stretta come il cranio, o sborda dal mento
+  const back=new THREE.Mesh(mandibola(
+    new THREE.SphereGeometry(.155,18,14,VISO+.95,2*Math.PI-1.9,0,2.1),.155,.60),hairM);
   back.castShadow=true;headP.add(back);
   // ciocche della frangia
   for(let i=0;i<5;i++){
@@ -1991,32 +2019,48 @@ function makeHuman(o){
     e.scale.set(.6,1,1);e.position.set(k*.14,-.01,0);headP.add(e);});
 
   /* braccia: spalla, gomito, mano */
+  /* Le giunture si vedevano perche' la sfera era piu' grossa del cilindro che
+     attaccava: ogni gomito faceva una pallina. Qui il raggio della sfera e'
+     esattamente quello dell'estremita' che tocca, cosi' l'arto sembra continuo. */
   function arm(side){
-    const sh=new THREE.Group();sh.position.set(side*.21,.5,0);hips.add(sh);
-    joint(.062,topM,sh,0);
-    limb(.055,.048,.28,o.bare?skinM:topM,sh,-.16);
+    const manica=o.bare?skinM:topM;
+    const sh=new THREE.Group();sh.position.set(side*.185,.487,0);hips.add(sh);
+    const dl=joint(.066,manica,sh,0);dl.scale.set(1,1.15,1);   // deltoide, non spigolo
+    limb(.066,.050,.30,manica,sh,-.165);
     if(!o.bare){                    // bordo manica: senza, manica bianca e pelle
       const cf=new THREE.Mesh(new THREE.CylinderGeometry(.052,.052,.035,12),colM);
-      cf.position.y=-.29;sh.add(cf);   // chiara si fondevano in un bastoncino
+      cf.position.y=-.30;sh.add(cf);   // chiara si fondevano in un bastoncino
     }
-    const el=new THREE.Group();el.position.y=-.3;sh.add(el);
-    joint(.046,o.bare?skinM:topM,el,0);
-    limb(.045,.04,.26,skinM,el,-.14);
-    const hand=joint(.058,skinM,el,-.29);hand.scale.set(1,1.15,.72);ink(hand,1.07);
+    const el=new THREE.Group();el.position.y=-.32;sh.add(el);
+    joint(.050,skinM,el,0);
+    limb(.050,.040,.27,skinM,el,-.15);
+    const polso=joint(.040,skinM,el,-.285);
+    const hand=new THREE.Mesh(new THREE.SphereGeometry(.052,10,8),skinM);
+    hand.scale.set(.78,1.25,.55);hand.position.y=-.335;el.add(hand);   // palmo piatto
+    const poll=new THREE.Mesh(new THREE.SphereGeometry(.021,7,6),skinM);
+    poll.scale.set(1,1.5,1);poll.position.set(side*-.038,-.31,.012);el.add(poll);
     return {sh,el};
   }
   const aL=arm(-1),aR=arm(1);
 
   /* gambe: anca, ginocchio, piede */
   function leg(side){
-    const hp=new THREE.Group();hp.position.set(side*.1,-.02,0);hips.add(hp);
-    joint(.075,botM,hp,0);
-    limb(.078,.062,.42,botM,hp,-.23);
+    const calza=o.socks?C(o.socks):botM;
+    // con la gonna la coscia e' pelle: lasciandola del colore dei pantaloni,
+    // fra orlo e calzino restava una fascia scura che legge come collant
+    const cosciaM=o.skirt?skinM:botM;
+    const hp=new THREE.Group();hp.position.set(side*.098,-.02,0);hips.add(hp);
+    joint(.084,botM,hp,0);
+    limb(.084,.064,.42,cosciaM,hp,-.23);
     const kn=new THREE.Group();kn.position.y=-.44;hp.add(kn);
-    joint(.058,o.socks?C(o.socks):botM,kn,0);
-    limb(.056,.045,.4,o.socks?C(o.socks):botM,kn,-.21);
-    const ft=new THREE.Mesh(new THREE.BoxGeometry(.1,.075,.22),shoeM);
-    ft.position.set(0,-.44,.05);ft.castShadow=true;kn.add(ft);ink(ft,1.07);
+    joint(.064,calza,kn,0);
+    limb(.064,.048,.40,calza,kn,-.21);
+    joint(.048,calza,kn,-.405);                       // caviglia
+    /* La scarpa era una scatola: da vicino e' l'unico spigolo vivo del corpo.
+       Un ellissoide allungato in avanti da' punta e collo del piede. */
+    const ft=new THREE.Mesh(new THREE.SphereGeometry(.078,12,9),shoeM);
+    ft.scale.set(.92,.58,1.55);ft.position.set(0,-.432,.042);
+    ft.castShadow=true;kn.add(ft);
     return {hp,kn};
   }
   const lL=leg(-1),lR=leg(1);
