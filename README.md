@@ -3,6 +3,10 @@
 A Japanese neighbourhood at dusk, in 3D, that you can walk around. Cartoon /
 cel-shaded, cut in two by a railway with a level crossing.
 
+### ▶ [Play it in your browser](https://danymaniglie-cmyk.github.io/3d-sakura-crossing/)
+
+No install, no build, no sign-up. It is one page.
+
 ![Walking through Sakura Crossing](docs/anteprima.gif)
 
 <!-- VIDEO -->
@@ -12,7 +16,9 @@ tiles, plaster, asphalt, the 2048×512 train livery with its lit windows and
 passenger silhouettes — is painted onto a canvas at load time. That is why the
 whole thing is 800 KB.
 
-## Run it
+## Run it locally
+
+Only needed if you want to change the code — otherwise use the link above.
 
 ```bash
 python3 -m http.server 5191
