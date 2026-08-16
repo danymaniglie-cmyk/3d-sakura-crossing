@@ -87,6 +87,7 @@
 </div>
 <script src="vendor/three.min.js"></script>
 <script src="vendor/BufferGeometryUtils.js"></script>
+<script src="vendor/Water.js"></script>
 <script>
 /* ============ base ============ */
 const scene=new THREE.Scene();
@@ -1420,16 +1421,19 @@ function house(x,z,rot,w,d,h,floors){
    in mattoni: il treno ci passa dentro e l'abitazione continua sopra. La casa
    normale viene costruita dalla stessa house() e semplicemente sollevata alla
    quota della chiave d'arco, cosi' non perde un solo dettaglio. */
-function casaGalleria(x,z,rot,w,d,h){
-  const LUCE=4.4;                       // larghezza netta del passaggio
-  const IMPOSTA=3.4;                    // quota da cui parte la curva
+/* opt.luce e opt.imposta allargano il portale, opt.yaw gira il passaggio:
+   quello del treno corre lungo x, quello della via principale lungo z. */
+function casaGalleria(x,z,rot,w,d,h,opt){
+  opt=opt||{};
+  const LUCE=opt.luce||4.4;             // larghezza netta del passaggio
+  const IMPOSTA=opt.imposta||3.4;       // quota da cui parte la curva
   const RAG=LUCE/2;                     // raggio dell'arco a tutto sesto
   const BASE=IMPOSTA+RAG+.55;           // quota a cui appoggia la casa
 
   const mattone=M({map:blockwall.clone()});
   mattone.map.repeat.set(3,2);
   const conci=C(0xc9b8a4);              // conci del portale, piu' chiari
-  const b=new THREE.Group();b.position.set(x,0,z);scene.add(b);
+  const b=new THREE.Group();b.position.set(x,0,z);b.rotation.y=opt.yaw||0;scene.add(b);
 
   // spalle piene ai due lati del passaggio, per tutta la profondita'
   [-1,1].forEach(k=>{
@@ -1441,7 +1445,7 @@ function casaGalleria(x,z,rot,w,d,h){
   });
 
   // arco a tutto sesto: conci disposti sulla semicirconferenza, non un tubo
-  const nConci=13;
+  const nConci=Math.max(13,Math.round(RAG*4));
   for(let i=0;i<nConci;i++){
     const a=Math.PI*(i+.5)/nConci;
     const cz=Math.cos(a)*RAG, cy=IMPOSTA+Math.sin(a)*RAG;
@@ -1492,11 +1496,12 @@ houses.forEach(h=>{
 // raggiungerebbe mai.
 // il fronte di house() sta su +Z: con rotazione 0 questa casa dava le
 // spalle alla via. Ruotata di PI guarda il paese, come le altre.
-/* Questa casa chiudeva la via principale come un fondale. Ora dietro c'e' il
-   fiume col suo ponte, e lasciarla in mezzo alla carreggiata avrebbe murato il
-   quartiere lontano dall'acqua. Spostata di lato: la strada corre fino al ponte,
-   e la casa resta a fare da quinta invece che da tappo. */
-house(-24,36,Math.PI*.82,14,6,6.5);
+/* Questa casa chiudeva la via principale come un fondale, e dietro ora c'e' il
+   fiume. Non va spostata: va bucata. Stesso portale a tutto sesto delle due case
+   attraversate dal treno, ma girato di novanta gradi — quello corre lungo x,
+   questo lungo la strada — e con una luce di quindici metri invece di quattro,
+   perche' ci deve passare la carreggiata intera. La casa resta sopra. */
+casaGalleria(0,34,Math.PI,22,7,6.5,{luce:15,imposta:4.6,yaw:Math.PI/2});
 
 
 /* ============ muretti, siepi, cancelli ============ */
@@ -2374,19 +2379,69 @@ const FIUME_G=(()=>{
   const fondo=plane(L,W,M({map:rivaTex}),0,FIUME.fondo,FIUME.z);
   fondo.receiveShadow=true;g.add(fondo);
 
-  /* due lastre d'acqua sovrapposte che scorrono in verso opposto: il
-     disallineamento fra le creste fa il luccichio senza scrivere uno shader */
-  const strati=[], tinte=[];
-  [[0,1,10],[1,.55,7]].forEach(([i,op,rip])=>{
-    const t=acquaTex.clone();t.needsUpdate=true;
-    t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(L/44*rip/10,W/44*rip/10);
-    const mat=new THREE.MeshBasicMaterial({map:t,transparent:i>0,
-      opacity:op,depthWrite:i===0});
-    mat.userData.base=new THREE.Color(1,1,1);   // il colore lo mette applyDay
-    const m=plane(L,W,mat,0,FIUME.y+i*.02,FIUME.z);
-    m.layers.enable(1);          // fuori dal prepass: il contorno lo danno le sponde
-    g.add(m);strati.push(t);tinte.push(mat);
+  /* Acqua vera: THREE.Water dagli esempi ufficiali della r128, vendorizzato
+     come three.js stesso. Non e' piu' un disegno che scorre — riflette il cielo
+     e le sponde con una camera speculare, e deforma il riflesso con una normal
+     map animata. Le librerie nuove (Water Pro, Tidewater) fanno di piu' ma
+     vogliono TSL e WebGPU, cioe' three.js r160+: qui riscriverebbero il motore.
+
+     La normal map non e' un file: come ogni altra texture del progetto viene
+     dipinta su canvas. Si costruisce un campo di altezze a somma di seni e se
+     ne ricava la pendenza punto per punto — il colore di una normal map E' la
+     pendenza, non un disegno di onde. */
+  const normAcqua=(()=>{
+    const N=256, c=document.createElement('canvas');c.width=c.height=N;
+    const x=c.getContext('2d'), img=x.createImageData(N,N);
+    const K=Math.PI*2/N;
+    const h=(u,v)=>Math.sin(u*K*3)*1.0+Math.sin((u*2+v*3)*K*2)*.7
+                  +Math.sin((v*5-u)*K*1.5)*.5+Math.sin((u*7+v*5)*K)*.25;
+    for(let v=0;v<N;v++)for(let u=0;u<N;u++){
+      // differenze centrali: la pendenza in x e in y attorno al punto
+      const dx=h((u+1)%N,v)-h((u-1+N)%N,v);
+      const dy=h(u,(v+1)%N)-h(u,(v-1+N)%N);
+      const nx=-dx*.5, ny=-dy*.5, nz=1;
+      const len=Math.hypot(nx,ny,nz), o=(v*N+u)*4;
+      img.data[o  ]=(nx/len*.5+.5)*255;
+      img.data[o+1]=(ny/len*.5+.5)*255;
+      img.data[o+2]=(nz/len*.5+.5)*255;
+      img.data[o+3]=255;
+    }
+    x.putImageData(img,0,0);
+    const t=new THREE.CanvasTexture(c);
+    t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=MAXA;
+    return t;                       // niente sRGB: e' un dato, non un colore
+  })();
+
+  const onda=new THREE.PlaneGeometry(L,W,176,18);
+  const acqua=new THREE.Water(onda,{
+    textureWidth:512, textureHeight:512,
+    waterNormals:normAcqua,
+    sunDirection:new THREE.Vector3(0,1,0),
+    sunColor:0xffe6c4, waterColor:0x3f6f8c,
+    distortionScale:4.4, fog:!!scene.fog, alpha:1.0
   });
+  acqua.rotation.x=-Math.PI/2;
+  acqua.position.set(0,FIUME.y,FIUME.z);
+  acqua.layers.enable(1);      // fuori dal prepass dei contorni
+  g.add(acqua);
+
+  /* Luccichii: puntini che salgono e scendono col riflesso e si accendono a
+     tempi sfasati. Sono loro a dare il brillio, che una texture che scorre non
+     puo' produrre — il brillio e' una cosa che lampeggia, non che trasla. */
+  const glint=(()=>{
+    const N=260, gg=new THREE.BufferGeometry(), a=new Float32Array(N*3), semi=[];
+    for(let i=0;i<N;i++){
+      a[i*3]=FIUME.da+Math.random()*(FIUME.a-FIUME.da);
+      a[i*3+1]=FIUME.y+.09;
+      a[i*3+2]=FIUME.z+(Math.random()-.5)*(W-4);
+      semi.push({f:.6+Math.random()*1.9, p:Math.random()*6.3});
+    }
+    gg.setAttribute('position',new THREE.BufferAttribute(a,3));
+    const pm=new THREE.PointsMaterial({size:.62,map:glowTex,color:0xffffff,
+      transparent:true,opacity:.55,depthWrite:false,blending:THREE.AdditiveBlending});
+    const pts=new THREE.Points(gg,pm);pts.layers.enable(1);g.add(pts);
+    return {gg,pm,semi};
+  })();
 
   // schiuma lungo le sponde: una striscia bianca che pulsa, il segno piu'
   // riconoscibile dell'acqua disegnata
@@ -2458,91 +2513,71 @@ const FIUME_G=(()=>{
     GROUND.addWall(x,FIUME.z,.5,PB.sem*2);
   });
   // sotto il ponte l'acqua resta, ma niente schiuma: la si spezza sul varco
-  return {g,strati,schiuma,tinte};
+  return {g,acqua,schiuma,onda,glint};
 })();
 
 /* ============================================================
-   LA SPIRALE DEL FIUME E IL VIADOTTO
-   Una seconda rampa elicoidale sale accanto alla casa che chiude la via
-   principale. Da li' parte un viadotto lungo trecento metri che scavalca il
-   fiume, curva sopra i quartieri di levante e si innesta sulla sopraelevata
-   che c'era gia': si sale da una parte del quartiere e si scende dall'altra.
-   L'altezza e' quella dell'impalcato esistente, 9.2 m, perche' i due si devono
-   incontrare — non e' un numero scelto, e' un vincolo.
+   LA RAMPA E IL VIADOTTO
+   Niente spirali: una rampa dritta che parte a terra davanti all'arco, sale con
+   pendenza costante, piega in curva e poi corre diritta fino a innestarsi sulla
+   sopraelevata che c'era gia'. La quota d'arrivo non e' scelta — e' quella
+   dell'impalcato esistente, 9.2 m, perche' i due si devono incontrare.
+   La pendenza si ricava dalla lunghezza percorsa, non si scrive a mano: cosi'
+   resta costante anche cambiando il tracciato.
    ============================================================ */
-/* Raggio 19 come la rampa che c'era gia': a 14 metri con una carreggiata di 8
-   la spirale si avvita su se stessa e da fuori legge come un mucchio di lastre.
-   Centro spostato a sud della sponda, o l'ultimo giro finiva dentro il canale. */
-const SPIR={cx:34, cz:24, R:19, giri:1.5, w:8.0, top:EXPWY.y};
+const VIA={w:8.4, top:EXPWY.y};
 
-(function spiraleEViadotto(){
+(function rampaEViadotto(){
   const B=Batch();
   const CONC=M({map:cementoTex}), ASF=M({map:asphalt}),
         PARA=M({map:cementoTex,color:0xd8d4cc}), PAINT=C(0xf0ecd8),
         STEEL=C(0x9aa3ab);
 
-  /* --- la spirale --- */
-  /* Ne' la spirale ne' il viadotto si registrano come piani calpestabili, come
-     gia' la sopraelevata: heightAt restituisce la quota massima fra quelle
-     sovrapposte, quindi un'elica che passa due volte sullo stesso punto
-     aggancerebbe alla corsia superiore chi ci cammina sotto. Sono scenografia
-     percorsa dalle auto, non dal personaggio. */
-  const SEG=26, tot=Math.round(SEG*SPIR.giri);
-  const dTh=(Math.PI*2*SPIR.giri)/tot;
-  const arc=SPIR.R*dTh, rise=SPIR.top/tot;
-  const pend=Math.atan2(rise,arc);
-  for(let i=0;i<tot;i++){
-    const th=i*dTh+dTh/2;
-    const x=SPIR.cx+Math.cos(th)*SPIR.R, z=SPIR.cz+Math.sin(th)*SPIR.R;
-    const y=(i+.5)*rise, yaw=-th, L=arc*1.06;
-    B.add(new THREE.BoxGeometry(L,.42,SPIR.w),CONC,x,y,z,0,yaw,pend,L/3,SPIR.w/4);
-    B.add(new THREE.BoxGeometry(L,.08,SPIR.w-.9),ASF,x,y+.24,z,0,yaw,pend,L/3,2);
-    [-1,1].forEach(k=>{
-      const ox=Math.cos(th)*k*(SPIR.w/2-.1), oz=Math.sin(th)*k*(SPIR.w/2-.1);
-      const h=k>0?1.15:.95;
-      B.add(new THREE.BoxGeometry(L,h,.3),PARA,x+ox,y+h/2+.2,z+oz,0,yaw,pend,L/3,1);
-      B.add(new THREE.BoxGeometry(L,.12,.42),STEEL,x+ox,y+h+.24,z+oz,0,yaw,pend);
-    });
-    if(i%2===0)B.add(new THREE.BoxGeometry(L*.5,.03,.18),PAINT,x,y+.29,z,0,yaw,pend);
-    if(i%7===3&&y>1.6){
-      B.add(new THREE.CylinderGeometry(.8,1.0,y-.2,10),CONC,x,(y-.2)/2,z,0,0,0,1,3);
-      B.add(new THREE.BoxGeometry(3.2,.6,3.2),CONC,x,.2,z);
-      GROUND.addWall(x,z,2.0,2.0);
-    }
-  }
-
-  /* --- il viadotto: una curva morbida per punti, non una spezzata --- */
-  const usc=Math.PI*2*SPIR.giri;
-  const P=[[SPIR.cx+Math.cos(usc)*SPIR.R, SPIR.cz+Math.sin(usc)*SPIR.R],
-           [44,58],[54,88],[76,98],[98,78],[107,42],[105,4],
-           [94,-32],[78,-56],[62,-62]];
+  // Tracciato in pianta: attacco a terra davanti all'arco, curva larga, rettilineo.
+  // l'attacco sta a sud dell'arco, cioe' davanti a chi risale la via principale
+  const P=[[11,26],[12,14],[13,-2],[16,-16],[24,-30],[38,-42],[56,-50],[76,-56],[96,-60],[120,-62]];
   const curva=new THREE.CatmullRomCurve3(
-    P.map(p=>new THREE.Vector3(p[0],SPIR.top,p[1])),false,'catmullrom',.4);
-  const N=170, W=SPIR.w;
-  const pt=curva.getPoints(N), tg=[];
-  for(let i=0;i<=N;i++)tg.push(curva.getTangent(i/N).normalize());
+    P.map(p=>new THREE.Vector3(p[0],0,p[1])),false,'catmullrom',.35);
+
+  const N=190;
+  const pt=curva.getPoints(N);
+  // lunghezze cumulate: servono per distribuire la salita in modo uniforme
+  const acc=[0];
+  for(let i=1;i<=N;i++)acc.push(acc[i-1]+Math.hypot(pt[i].x-pt[i-1].x,pt[i].z-pt[i-1].z));
+  const LTOT=acc[N];
+  const SALITA=28;                 // primi metri ancora a terra, davanti all'arco
+  const quota=s=>{
+    const t=Math.max(0,Math.min(1,(s-SALITA)/(LTOT-SALITA-30)));
+    return VIA.top*t*t*(3-2*t);    // raccordo dolce in partenza e in arrivo
+  };
+  pt.forEach((p,i)=>p.y=quota(acc[i]));
+
   for(let i=0;i<N;i++){
     const a=pt[i], b=pt[i+1];
-    const mx=(a.x+b.x)/2, mz=(a.z+b.z)/2;
-    const dx=b.x-a.x, dz=b.z-a.z, len=Math.hypot(dx,dz)*1.08;
-    const yaw=Math.atan2(-dz,dx);              // la carreggiata segue la tangente
-    B.add(new THREE.BoxGeometry(len,.5,W),CONC,mx,SPIR.top,mz,0,yaw,0,len/3,W/4);
-    B.add(new THREE.BoxGeometry(len,.08,W-.9),ASF,mx,SPIR.top+.28,mz,0,yaw,0,len/3,2);
+    const dx=b.x-a.x, dz=b.z-a.z, dy=b.y-a.y;
+    const oriz=Math.hypot(dx,dz), len=Math.hypot(oriz,dy)*1.08;
+    const yaw=Math.atan2(-dz,dx), pend=-Math.atan2(dy,oriz);
+    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2, mz=(a.z+b.z)/2;
+    B.add(new THREE.BoxGeometry(len,.5,VIA.w),CONC,mx,my,mz,0,yaw,pend,len/3,VIA.w/4);
+    B.add(new THREE.BoxGeometry(len,.08,VIA.w-.9),ASF,mx,my+.28,mz,0,yaw,pend,len/3,2);
     [-1,1].forEach(k=>{
-      const nx=Math.cos(yaw+Math.PI/2)*k*(W/2-.1), nz=-Math.sin(yaw+Math.PI/2)*k*(W/2-.1);
-      B.add(new THREE.BoxGeometry(len,1.05,.3),PARA,mx+nx,SPIR.top+.72,mz+nz,0,yaw,0,len/3,1);
-      B.add(new THREE.BoxGeometry(len,.12,.42),STEEL,mx+nx,SPIR.top+1.30,mz+nz,0,yaw,0);
+      const nx=Math.cos(yaw+Math.PI/2)*k*(VIA.w/2-.1), nz=-Math.sin(yaw+Math.PI/2)*k*(VIA.w/2-.1);
+      B.add(new THREE.BoxGeometry(len,1.05,.3),PARA,mx+nx,my+.72,mz+nz,0,yaw,pend,len/3,1);
+      B.add(new THREE.BoxGeometry(len,.12,.42),STEEL,mx+nx,my+1.30,mz+nz,0,yaw,pend);
     });
-    if(i%2===0)B.add(new THREE.BoxGeometry(len*.5,.03,.18),PAINT,mx,SPIR.top+.33,mz,0,yaw,0);
-    // pile: si fermano sull'acqua invece di piantarsi nel canale
-    if(i%9===4){
+    if(i%2===0)B.add(new THREE.BoxGeometry(len*.5,.03,.18),PAINT,mx,my+.33,mz,0,yaw,pend);
+    // pile solo dove la strada e' staccata da terra, e mai dentro un edificio
+    if(i%8===4 && my>2.2 && !GROUND.blocked(mx,mz,2.6)){
       const dentro=Math.abs(mz-FIUME.z)<FIUME.sem;
       const base=dentro?FIUME.fondo:0;
-      const h=SPIR.top-base-.3;
+      const h=my-base-.35;
       B.add(new THREE.CylinderGeometry(.95,1.15,h,10),CONC,mx,base+h/2,mz,0,0,0,1,3);
-      B.add(new THREE.BoxGeometry(3.6,.7,3.6),CONC,mx,SPIR.top-.6,mz,0,yaw,0,1,1);
-      if(!dentro)GROUND.addWall(mx,mz,2.4,2.4);
+      B.add(new THREE.BoxGeometry(3.4,.7,3.4),CONC,mx,my-.62,mz,0,yaw,0,1,1);
+      if(!dentro)GROUND.addWall(mx,mz,2.2,2.2);
     }
+    // muretti di sostegno dove la rampa e' ancora bassa, invece delle pile
+    if(i%4===2 && my>.35 && my<=2.2)
+      B.add(new THREE.BoxGeometry(len*1.1,my,VIA.w-1.4),CONC,mx,my/2,mz,0,yaw,0,len/3,1);
   }
   B.flush(scene,true,true);
 })();
@@ -2551,10 +2586,35 @@ const SPIR={cx:34, cz:24, R:19, giri:1.5, w:8.0, top:EXPWY.y};
    piu' la schiuma di sponda che avanza piu' piano. Il disallineamento fra i due
    disegni fa il luccichio, e costa due somme per frame invece di uno shader. */
 function updateFiume(t){
-  FIUME_G.strati[0].offset.x=-t*.020;
-  FIUME_G.strati[1].offset.x=-t*.034;
-  FIUME_G.strati[1].offset.y=Math.sin(t*.21)*.02;
-  FIUME_G.schiuma.forEach((s,i)=>{s.offset.x=-t*.012-i*.5;});
+  // Water anima il proprio riflesso da questo uniform: e' il suo orologio
+  FIUME_G.acqua.material.uniforms.time.value=t*.62;
+  FIUME_G.schiuma.forEach((s,i)=>{s.offset.x=-t*.014-i*.5;});
+
+  /* L'onda: somma di tre seni con lunghezze e versi diversi. Una sola sinusoide
+     legge come una lamiera ondulata che scorre; ne bastano tre incommensurabili
+     perche' il moto non si ripeta a occhio. Il vertice si sposta lungo la z
+     locale, che dopo la rotazione del piano e' l'altezza nel mondo. */
+  const p=FIUME_G.onda.attributes.position;
+  for(let i=0;i<p.count;i++){
+    const x=p.getX(i), y=p.getY(i);
+    p.setZ(i, Math.sin(x*.16+t*1.15)*.125
+            + Math.sin(x*.071-y*.13+t*.78)*.095
+            + Math.sin(y*.29+t*1.9)*.045);
+  }
+  p.needsUpdate=true;
+
+  /* I luccichii si accendono e si spengono uno a uno. Non si puo' farlo con
+     l'opacita': PointsMaterial ne ha una sola per l'intera nuvola, e mediando
+     duecentosessanta lampeggi resta una costante. Si spegne un punto
+     affondandolo sotto la lastra opaca, che lo nasconde. */
+  const G2=FIUME_G.glint, gp=G2.gg.attributes.position;
+  for(let i=0;i<G2.semi.length;i++){
+    const s=G2.semi[i], x=gp.getX(i);
+    const on=Math.sin(t*s.f+s.p);
+    gp.setY(i, on>.45 ? FIUME.y+.14+Math.sin(x*.16+t*1.15)*.125
+                      : FIUME.y-.60);
+  }
+  gp.needsUpdate=true;
 }
 
 function updateLife(dt,t){
@@ -2962,16 +3022,19 @@ function applyDay(){
      un fiume rispecchia cio' che ha sopra, ed e' esattamente quel legame che
      mancava perche' sembrasse parte della stessa illustrazione.  */
   if(typeof FIUME_G!=='undefined'){
-    const cielo=lerpSRGB(new THREE.Color(),a.sky,b.sky,k);
-    const forza=a.si+(b.si-a.si)*k;
-    FIUME_G.tinte.forEach(m=>{
-      m.color.copy(m.userData.base).lerp(cielo,.72).multiplyScalar(.62+.16*Math.min(1.4,forza));
-    });
+    const u=FIUME_G.acqua.material.uniforms;
+    /* Il colore proprio dell'acqua resta blu e prende solo un soffio di cielo:
+       tinta puramente col cielo diventava uno specchio rosa in cui il fiume
+       spariva. Un fiume riflette, ma ha anche un colore suo. */
+    lerpSRGB(u.waterColor.value,a.fog,b.fog,k).lerp(_acquaBlu,.80);
+    lerpSRGB(u.sunColor.value,a.sun,b.sun,k);
+    u.sunDirection.value.set(Math.cos(sunH*.0175),Math.sin(sunH*.0175),.2).normalize();
   }
   const hh=Math.floor(G.time*24),mm=Math.floor((G.time*24%1)*60);
   $clock.textContent=`Giorno ${G.day} · ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')} · ${a.n}`;
 }
 let sunH=9;
+const _acquaBlu=new THREE.Color(0x67b4d8).convertSRGBToLinear();
 
 /* ---------- aggiornamento di gioco ---------- */
 function updateGame(dt){
