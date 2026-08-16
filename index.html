@@ -85,8 +85,8 @@
   <p>Sei nuovo del quartiere. Sei persone vivono qui: parlaci, accetta i loro incarichi, guadagnati la loro fiducia. I giorni passano e non finiscono mai.</p>
   <button id="go">INIZIA LA STORIA</button>
 </div>
-<script src="/vendor/three.min.js"></script>
-<script src="/vendor/BufferGeometryUtils.js"></script>
+<script src="vendor/three.min.js"></script>
+<script src="vendor/BufferGeometryUtils.js"></script>
 <script>
 /* ============ base ============ */
 const scene=new THREE.Scene();
@@ -2371,7 +2371,7 @@ const $obj=gui.querySelector('#obj'),$clock=gui.querySelector('#clock'),$bar=gui
       $goT=$dlg.querySelector('.go'),$toast=gui.querySelector('#toast');
 
 const G={day:1,time:.62,done:0,talking:false,quest:null,carrying:null,aff:{},pickups:[],
-  petals:0,lastGiver:null,speedDay:1/540};
+  petals:0,lastGiver:null,speedDay:1/2400};
 npcs.forEach(n=>{if(n.id)G.aff[n.id]=0;});
 
 function toast(t){$toast.textContent=t;$toast.classList.add('on');
@@ -2712,7 +2712,7 @@ function endCine(){
   CINE.on=false;
   CINE.on=false;cine.style.display='none';
   scene.fog.near=58;scene.fog.far=380;
-  G.time=.75;applyDay();
+  G.time=.78;applyDay();   // si comincia di sera, col sole gia' basso
   setObj('Sei tornato. Trova qualcuno con cui parlare: sono <b>sei</b> in questo quartiere.');
   say('Avvicinati a qualcuno e premi PARLA',4200);
 }
