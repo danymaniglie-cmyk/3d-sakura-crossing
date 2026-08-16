@@ -1492,7 +1492,11 @@ houses.forEach(h=>{
 // raggiungerebbe mai.
 // il fronte di house() sta su +Z: con rotazione 0 questa casa dava le
 // spalle alla via. Ruotata di PI guarda il paese, come le altre.
-house(0,34,Math.PI,14,6,6.5);
+/* Questa casa chiudeva la via principale come un fondale. Ora dietro c'e' il
+   fiume col suo ponte, e lasciarla in mezzo alla carreggiata avrebbe murato il
+   quartiere lontano dall'acqua. Spostata di lato: la strada corre fino al ponte,
+   e la casa resta a fare da quinta invece che da tappo. */
+house(-24,36,Math.PI*.82,14,6,6.5);
 
 
 /* ============ muretti, siepi, cancelli ============ */
@@ -2455,6 +2459,92 @@ const FIUME_G=(()=>{
   });
   // sotto il ponte l'acqua resta, ma niente schiuma: la si spezza sul varco
   return {g,strati,schiuma,tinte};
+})();
+
+/* ============================================================
+   LA SPIRALE DEL FIUME E IL VIADOTTO
+   Una seconda rampa elicoidale sale accanto alla casa che chiude la via
+   principale. Da li' parte un viadotto lungo trecento metri che scavalca il
+   fiume, curva sopra i quartieri di levante e si innesta sulla sopraelevata
+   che c'era gia': si sale da una parte del quartiere e si scende dall'altra.
+   L'altezza e' quella dell'impalcato esistente, 9.2 m, perche' i due si devono
+   incontrare — non e' un numero scelto, e' un vincolo.
+   ============================================================ */
+/* Raggio 19 come la rampa che c'era gia': a 14 metri con una carreggiata di 8
+   la spirale si avvita su se stessa e da fuori legge come un mucchio di lastre.
+   Centro spostato a sud della sponda, o l'ultimo giro finiva dentro il canale. */
+const SPIR={cx:34, cz:24, R:19, giri:1.5, w:8.0, top:EXPWY.y};
+
+(function spiraleEViadotto(){
+  const B=Batch();
+  const CONC=M({map:cementoTex}), ASF=M({map:asphalt}),
+        PARA=M({map:cementoTex,color:0xd8d4cc}), PAINT=C(0xf0ecd8),
+        STEEL=C(0x9aa3ab);
+
+  /* --- la spirale --- */
+  /* Ne' la spirale ne' il viadotto si registrano come piani calpestabili, come
+     gia' la sopraelevata: heightAt restituisce la quota massima fra quelle
+     sovrapposte, quindi un'elica che passa due volte sullo stesso punto
+     aggancerebbe alla corsia superiore chi ci cammina sotto. Sono scenografia
+     percorsa dalle auto, non dal personaggio. */
+  const SEG=26, tot=Math.round(SEG*SPIR.giri);
+  const dTh=(Math.PI*2*SPIR.giri)/tot;
+  const arc=SPIR.R*dTh, rise=SPIR.top/tot;
+  const pend=Math.atan2(rise,arc);
+  for(let i=0;i<tot;i++){
+    const th=i*dTh+dTh/2;
+    const x=SPIR.cx+Math.cos(th)*SPIR.R, z=SPIR.cz+Math.sin(th)*SPIR.R;
+    const y=(i+.5)*rise, yaw=-th, L=arc*1.06;
+    B.add(new THREE.BoxGeometry(L,.42,SPIR.w),CONC,x,y,z,0,yaw,pend,L/3,SPIR.w/4);
+    B.add(new THREE.BoxGeometry(L,.08,SPIR.w-.9),ASF,x,y+.24,z,0,yaw,pend,L/3,2);
+    [-1,1].forEach(k=>{
+      const ox=Math.cos(th)*k*(SPIR.w/2-.1), oz=Math.sin(th)*k*(SPIR.w/2-.1);
+      const h=k>0?1.15:.95;
+      B.add(new THREE.BoxGeometry(L,h,.3),PARA,x+ox,y+h/2+.2,z+oz,0,yaw,pend,L/3,1);
+      B.add(new THREE.BoxGeometry(L,.12,.42),STEEL,x+ox,y+h+.24,z+oz,0,yaw,pend);
+    });
+    if(i%2===0)B.add(new THREE.BoxGeometry(L*.5,.03,.18),PAINT,x,y+.29,z,0,yaw,pend);
+    if(i%7===3&&y>1.6){
+      B.add(new THREE.CylinderGeometry(.8,1.0,y-.2,10),CONC,x,(y-.2)/2,z,0,0,0,1,3);
+      B.add(new THREE.BoxGeometry(3.2,.6,3.2),CONC,x,.2,z);
+      GROUND.addWall(x,z,2.0,2.0);
+    }
+  }
+
+  /* --- il viadotto: una curva morbida per punti, non una spezzata --- */
+  const usc=Math.PI*2*SPIR.giri;
+  const P=[[SPIR.cx+Math.cos(usc)*SPIR.R, SPIR.cz+Math.sin(usc)*SPIR.R],
+           [44,58],[54,88],[76,98],[98,78],[107,42],[105,4],
+           [94,-32],[78,-56],[62,-62]];
+  const curva=new THREE.CatmullRomCurve3(
+    P.map(p=>new THREE.Vector3(p[0],SPIR.top,p[1])),false,'catmullrom',.4);
+  const N=170, W=SPIR.w;
+  const pt=curva.getPoints(N), tg=[];
+  for(let i=0;i<=N;i++)tg.push(curva.getTangent(i/N).normalize());
+  for(let i=0;i<N;i++){
+    const a=pt[i], b=pt[i+1];
+    const mx=(a.x+b.x)/2, mz=(a.z+b.z)/2;
+    const dx=b.x-a.x, dz=b.z-a.z, len=Math.hypot(dx,dz)*1.08;
+    const yaw=Math.atan2(-dz,dx);              // la carreggiata segue la tangente
+    B.add(new THREE.BoxGeometry(len,.5,W),CONC,mx,SPIR.top,mz,0,yaw,0,len/3,W/4);
+    B.add(new THREE.BoxGeometry(len,.08,W-.9),ASF,mx,SPIR.top+.28,mz,0,yaw,0,len/3,2);
+    [-1,1].forEach(k=>{
+      const nx=Math.cos(yaw+Math.PI/2)*k*(W/2-.1), nz=-Math.sin(yaw+Math.PI/2)*k*(W/2-.1);
+      B.add(new THREE.BoxGeometry(len,1.05,.3),PARA,mx+nx,SPIR.top+.72,mz+nz,0,yaw,0,len/3,1);
+      B.add(new THREE.BoxGeometry(len,.12,.42),STEEL,mx+nx,SPIR.top+1.30,mz+nz,0,yaw,0);
+    });
+    if(i%2===0)B.add(new THREE.BoxGeometry(len*.5,.03,.18),PAINT,mx,SPIR.top+.33,mz,0,yaw,0);
+    // pile: si fermano sull'acqua invece di piantarsi nel canale
+    if(i%9===4){
+      const dentro=Math.abs(mz-FIUME.z)<FIUME.sem;
+      const base=dentro?FIUME.fondo:0;
+      const h=SPIR.top-base-.3;
+      B.add(new THREE.CylinderGeometry(.95,1.15,h,10),CONC,mx,base+h/2,mz,0,0,0,1,3);
+      B.add(new THREE.BoxGeometry(3.6,.7,3.6),CONC,mx,SPIR.top-.6,mz,0,yaw,0,1,1);
+      if(!dentro)GROUND.addWall(mx,mz,2.4,2.4);
+    }
+  }
+  B.flush(scene,true,true);
 })();
 
 /* La corrente: due lastre che scorrono a velocita' diverse nello stesso verso,
