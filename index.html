@@ -697,17 +697,24 @@ const FIUME={z:66, sem:22, y:-1.55, fondo:-3.4, da:-220, a:220};
 // a fine costruzione il blocco viene allargato in un colpo solo (widenQuarter)
 const QUARTER_FROM=scene.children.length;
 const roadMat=M({map:asphalt});
-plane(13,440,roadMat,0,.012,0);
-// marciapiedi rialzati
-[-8,8].forEach(sx=>{
-  const s=box(3,.36,440,M({map:pave}),sx,.18,0);
-  box(.3,.42,440,C(0xe7e3e9),sx-Math.sign(sx)*1.5,.21,0);  // cordolo
-  // linea tattile gialla
-  const t=plane(.7,440,M({map:tenji.clone()}),sx,.375,0);
+/* La carreggiata e i marciapiedi erano piani unici lunghi quattrocentoquaranta
+   metri, quindi attraversavano il fiume sospesi nel vuoto: bucare il prato non
+   basta, va bucata anche la strada. Qui si spezzano sulle due sponde — di la'
+   dall'acqua ci si passa sul viadotto, che e' l'unica traversata. */
+const RIVA_S=FIUME.z-FIUME.sem-1.2, RIVA_N=FIUME.z+FIUME.sem+1.2;
+const sulPonte=z=>z>RIVA_S&&z<RIVA_N;
+[[-220,RIVA_S],[RIVA_N,220]].forEach(([z0,z1])=>{
+  const L=z1-z0, C0=(z0+z1)/2;
+  plane(13,L,roadMat,0,.012,C0);
+  [-8,8].forEach(sx=>{
+    box(3,.36,L,M({map:pave}),sx,.18,C0);
+    box(.3,.42,L,C(0xe7e3e9),sx-Math.sign(sx)*1.5,.21,C0);   // cordolo
+    plane(.7,L,M({map:tenji.clone()}),sx,.375,C0);           // linea tattile
+  });
 });
 // linea centrale
 for(let z=-210;z<210;z+=7){
-  if(Math.abs(z)<7)continue;
+  if(Math.abs(z)<7||sulPonte(z))continue;
   plane(.28,3.2,C(0xeeeaf0),0,.03,z);
 }
 // stop 止まれ + linea d'arresto
@@ -720,8 +727,9 @@ for(let z=-210;z<210;z+=7){
   m.rotation.x=-Math.PI/2;m.position.set(p[0],.032,p[1]);scene.add(m);
 });
 // caditoie ai bordi
-for(let z=-200;z<200;z+=10){[-6.3,6.3].forEach(x=>{
-  const g=plane(.5,1.3,C(0x5d5866),x,.035,z);});}
+for(let z=-200;z<200;z+=10){
+  if(sulPonte(z))continue;
+  [-6.3,6.3].forEach(x=>{const g=plane(.5,1.3,C(0x5d5866),x,.035,z);});}
 
 /* La via principale resta quella disegnata a mano; il resto della citta' e'
    generato per quartieri, ognuno con la propria larghezza di strada. */
@@ -2504,7 +2512,7 @@ const FIUME_G=(()=>{
    La pendenza si ricava dalla lunghezza percorsa, non si scrive a mano: cosi'
    resta costante anche cambiando il tracciato.
    ============================================================ */
-const VIA={w:8.4, top:EXPWY.y};
+const VIA={w:10.4, top:EXPWY.y};
 
 /* Un nastro continuo: i vertici sono condivisi fra un tratto e il successivo,
    quindi non ci sono giunti ne' sporgenze. Serviva perche' l'impalcato a
@@ -2544,7 +2552,7 @@ function nastro(st,lat,semi,yAlto,spess,mat,passoU,padre,orig){
   (padre||scene).add(m);return m;
 }
 
-const BATTENTI=(function rampaEViadotto(){
+const PONTE_M=(function rampaEViadotto(){
   const B=Batch();
   const CONC=M({map:cementoTex}), ASF=M({map:asphalt}),
         PARA=M({map:cementoTex,color:0xd8d4cc}), STEEL=C(0x9aa3ab);
@@ -2589,7 +2597,8 @@ const BATTENTI=(function rampaEViadotto(){
   const mezzo=apribile?Math.floor((iSud+iNord)/2):0;
 
   function sezioni(gruppo,lista,orig){
-    nastro(lista,0,VIA.w/2,      0,   .55,CONC,3,gruppo,orig);
+    nastro(lista,0,VIA.w/2,      0,   .92,CONC,3,gruppo,orig);   // soletta massiccia
+    nastro(lista,0,VIA.w/2+.34,-.92,   .34,CONC,3,gruppo,orig);   // cornicione
     nastro(lista,0,VIA.w/2-.5, .32,   .06,ASF ,3,gruppo,orig);
     [-1,1].forEach(k=>{
       nastro(lista,k*(VIA.w/2-.16),.16,1.35,1.05,PARA ,3,gruppo,orig);
@@ -2597,7 +2606,36 @@ const BATTENTI=(function rampaEViadotto(){
     });
   }
 
-  const battenti=[];
+  const battenti=[], sbarre=[], luci=[];
+  /* Apparato del ponte mobile: casotto del macchinario a lato di ogni cerniera,
+     sbarra che scende prima che l'impalcato si alzi, e due luci rosse che
+     lampeggiano alternate. Un ponte che si apre senza fermare il traffico
+     prima e' la cosa che leggeva come bug. */
+  function apparato(c,verso){
+    [-1,1].forEach(k=>{
+      const bx=c.x+k*(VIA.w/2+1.5);
+      box(2.6,3.2,3.0,CONC,bx,1.6,c.z+verso*1.4);            // casotto
+      box(3.0,.4,3.4,PARA,bx,3.35,c.z+verso*1.4);            // cornice del tetto
+    });
+    const px=c.x+VIA.w/2+.2, py=c.y+.5;
+    cyl(.13,.15,2.6,STEEL,px,py+1.3,c.z+verso*3.2,8);        // palo della sbarra
+    const g=new THREE.Group();g.position.set(px,py+2.1,c.z+verso*3.2);scene.add(g);
+    for(let i=0;i<5;i++)                                      // asta a fasce
+      box(VIA.w/5*.98,.16,.16,C(i%2?0xf2eee8:0xd8443c),
+          -VIA.w/10-i*(VIA.w/5),0,0,g);
+    sbarre.push(g);
+    [-1,1].forEach(k=>{                                       // semaforo a due luci
+      const lx=c.x+k*(VIA.w/2+.55);
+      cyl(.1,.12,3.0,STEEL,lx,py+1.5,c.z+verso*4.6,8);
+      [-1,1].forEach(j=>{
+        const l=new THREE.Mesh(new THREE.CircleGeometry(.26,14),
+          new THREE.MeshBasicMaterial({color:0x611f27}));
+        l.position.set(lx+j*.32,py+3.0,c.z+verso*4.6+.06*verso);
+        l.rotation.y=verso>0?0:Math.PI;scene.add(l);
+        luci.push({m:l,fase:j>0});
+      });
+    });
+  }
   if(apribile){
     sezioni(null, st.slice(0,iSud+1));          // rampa d'accesso da sud
     sezioni(null, st.slice(iNord));             // e la prosecuzione a nord
@@ -2607,6 +2645,7 @@ const BATTENTI=(function rampaEViadotto(){
       sezioni(g, st.slice(a,b), c);
       battenti.push({g,verso});
     });
+    apparato(st[iSud],-1); apparato(st[iNord],1);
   } else sezioni(null, st);
 
   // pile e rilevato: questi restano pezzi distinti, perche' pezzi distinti sono
@@ -2625,7 +2664,7 @@ const BATTENTI=(function rampaEViadotto(){
     }
   }
   B.flush(scene,true,true);
-  return battenti;
+  return {battenti,sbarre,luci};
 })();
 
 /* La corrente: due lastre che scorrono a velocita' diverse nello stesso verso,
@@ -3133,25 +3172,43 @@ function righello(){
    battenti lo usano con segno opposto, cosi' non possono disallinearsi.
    Ruotano attorno all'asse X perche' li' la carreggiata corre lungo z: la
    cerniera e' la sponda, e il capo libero e' quello che si alza. */
-const PMOB={fase:'chiuso', t:26, ap:0, MAX:1.12};
+const PMOB={fase:'chiuso', t:26, ap:0, sb:0, lamp:0, acceso:false, MAX:1.12};
 function updatePonteMobile(dt){
-  if(!BATTENTI.length)return;
-  if(PMOB.fase==='chiuso'){
-    PMOB.t-=dt;
-    if(PMOB.t<=0){PMOB.fase='apre';say('il ponte si apre',2400);}
-  } else if(PMOB.fase==='apre'){
-    PMOB.ap=Math.min(1,PMOB.ap+dt/4.5);
-    if(PMOB.ap>=1){PMOB.fase='aperto';PMOB.t=9;}
-  } else if(PMOB.fase==='aperto'){
-    PMOB.t-=dt;
-    if(PMOB.t<=0)PMOB.fase='chiude';
-  } else {
-    PMOB.ap=Math.max(0,PMOB.ap-dt/4.5);
-    if(PMOB.ap<=0){PMOB.fase='chiuso';PMOB.t=26+Math.random()*16;}
+  if(!PONTE_M.battenti.length)return;
+  const P=PMOB;
+  switch(P.fase){
+    case 'chiuso':                                   // traffico libero
+      P.t-=dt; if(P.t<=0){P.fase='allarme';say('カンカン — il ponte si apre',2600);}
+      break;
+    case 'allarme':                                  // prima si ferma il traffico
+      P.sb=Math.min(1,P.sb+dt/1.6); if(P.sb>=1)P.fase='apre';
+      break;
+    case 'apre':
+      P.ap=Math.min(1,P.ap+dt/4.5); if(P.ap>=1){P.fase='aperto';P.t=9;}
+      break;
+    case 'aperto':
+      P.t-=dt; if(P.t<=0)P.fase='chiude';
+      break;
+    case 'chiude':
+      P.ap=Math.max(0,P.ap-dt/4.5); if(P.ap<=0)P.fase='rialza';
+      break;
+    default:                                         // solo ora risale la sbarra
+      P.sb=Math.max(0,P.sb-dt/1.6);
+      if(P.sb<=0){P.fase='chiuso';P.t=26+Math.random()*18;}
   }
-  // raccordo dolce agli estremi: un battente non parte e non si ferma di scatto
-  const e=PMOB.ap*PMOB.ap*(3-2*PMOB.ap);
-  BATTENTI.forEach(b=>{b.g.rotation.x=-b.verso*e*PMOB.MAX;});
+  // raccordo dolce: un battente non parte e non si ferma di scatto
+  const e=P.ap*P.ap*(3-2*P.ap);
+  PONTE_M.battenti.forEach(b=>{b.g.rotation.x=-b.verso*e*P.MAX;});
+  // sbarra: 0 = alzata (si passa), 1 = abbassata di traverso sulla carreggiata
+  PONTE_M.sbarre.forEach(g=>{g.rotation.z=-(1-P.sb)*Math.PI/2;});
+  // rosse alternate finche' non e' tutto richiuso
+  if(P.fase!=='chiuso'){
+    P.lamp-=dt; if(P.lamp<=0){P.lamp=.45;P.acceso=!P.acceso;}
+  } else P.acceso=false;
+  PONTE_M.luci.forEach(l=>{
+    const on=P.fase!=='chiuso' && (l.fase===P.acceso);
+    setSRGB(l.m.material.color, on?0xff3b46:0x611f27);
+  });
 }
 
 function updateGame(dt){
