@@ -2668,14 +2668,10 @@ const FIUME_G=(()=>{
        era il bordo di una pozza. Un canale urbano ha il cordolo e basta —
        a fermare chi cammina ci pensa la barriera invisibile, non un tubo. */
     GROUND.addPlat(0,zb+k*1.2,L,1.5,.32);
-    /* Barriera contro la caduta nel canale, ma spezzata sul varco del ponte:
-       una parete continua avrebbe murato la via principale sulle due rive,
-       chiudendo il quartiere invece di collegarlo. */
-    [[FIUME.da,-VIA_VARCO],[VIA_VARCO,FIUME.a]].forEach(([x0,x1])=>
-      /* base sotto il pelo dell'acqua: la barriera trattiene chi cammina sul
-         cordolo, ma non chi sta nuotando nel canale — altrimenti chi ci cade
-         resta chiuso dentro senza via d'uscita. */
-      GROUND.addWall((x0+x1)/2,zb+k*.62,x1-x0,.5,1.2,-.15));
+    /* Niente barriera sul ciglio. C'era per non far cadere nel canale, quando
+       cascarci dentro voleva dire restare intrappolati; ora si nuota, si scende
+       sul fondale e si risale la sponda, quindi quel muro impediva soltanto una
+       cosa che si puo' fare. Dal bordo ci si butta. */
   });
 
   /* Il ponte stradale che stava qui e' sparito: la traversata del fiume ora e'
@@ -2701,7 +2697,7 @@ const FIUME_G=(()=>{
       box(.9,2.6,L,M({map:cementoTex}),bx,FIUME.fondo+1.9,C0,g);
       box(1.5,.34,L,M({map:pave}),a.x+k*(a.sem+1.2),.15,C0,g);
       GROUND.addPlat(a.x+k*(a.sem+1.2),C0,1.5,L,.32);
-      GROUND.addWall(a.x+k*(a.sem+.45),C0,.9,L,1.2,-.15);   // argine
+      // nemmeno sugli affluenti: dal ciglio ci si puo' buttare
     });
   });
   return {g,acqua,schiuma,onda,glint,minori};
