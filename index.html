@@ -2548,7 +2548,7 @@ const VIA={w:8.4, top:EXPWY.y};
      segue da solo.
      Il rettilineo ha tutti i punti sulla stessa ascissa: viene dritto per
      costruzione, non per fortuna. La curva comincia solo dopo il fiume. */
-  const SCOSTA={x:-46, z:22};        // <— sposta l'intero blocco del ponte
+  const SCOSTA={x:-22, z:27};        // <— sposta l'intero blocco del ponte
   const REL=[[22,-22],[22,-2],[22,18],[22,38],[22,58],[24,76],[36,90],
              [62,96],[90,81],[105,53],[109,18],[111,-22],[112,-52]];
   const P=REL.map(([dx,dz])=>[ARCO.x+dx+SCOSTA.x, ARCO.z+dz+SCOSTA.z]);
@@ -2594,6 +2594,12 @@ const VIA={w:8.4, top:EXPWY.y};
     const oriz=Math.hypot(dx,dz), len=Math.hypot(oriz,dy)*1.08;
     const yaw=Math.atan2(-dz,dx), pend=-Math.atan2(dy,oriz);
     const mx=(a.x+b.x)/2, my=(a.y+b.y)/2, mz=(a.z+b.z)/2;
+    /* Dove il tracciato passa dentro la sagoma del ponte stradale e sta ancora
+       basso, non si costruisce nulla: la carreggiata sul fiume c'e' gia', e
+       ridisegnarla sette centimetri piu' su darebbe due impalcati sovrapposti
+       che sfarfallano. La rampa ricompare appena esce dal ponte. */
+    const suPonte=Math.abs(mx)<11.6 && Math.abs(mz-FIUME.z)<FIUME.sem+4.6 && my<2.2;
+    if(suPonte)continue;
     B.add(new THREE.BoxGeometry(len,.5,VIA.w),CONC,mx,my,mz,0,yaw,pend,len/3,VIA.w/4);
     B.add(new THREE.BoxGeometry(len,.08,VIA.w-.9),ASF,mx,my+.28,mz,0,yaw,pend,len/3,2);
     [-1,1].forEach(k=>{
