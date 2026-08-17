@@ -2548,7 +2548,7 @@ const VIA={w:8.4, top:EXPWY.y};
      segue da solo.
      Il rettilineo ha tutti i punti sulla stessa ascissa: viene dritto per
      costruzione, non per fortuna. La curva comincia solo dopo il fiume. */
-  const SCOSTA={x:12, z:22};        // <— sposta l'intero blocco del ponte
+  const SCOSTA={x:-46, z:22};        // <— sposta l'intero blocco del ponte
   const REL=[[22,-22],[22,-2],[22,18],[22,38],[22,58],[24,76],[36,90],
              [62,96],[90,81],[105,53],[109,18],[111,-22],[112,-52]];
   const P=REL.map(([dx,dz])=>[ARCO.x+dx+SCOSTA.x, ARCO.z+dz+SCOSTA.z]);
@@ -2556,7 +2556,12 @@ const VIA={w:8.4, top:EXPWY.y};
      sopraelevata, che sta dove sta. Spostando anche questa, il ponte finiva
      quaranta metri prima del punto d'innesto — collegato a niente. */
   const xF=P[P.length-1][0];
-  P.push([xF+3, EXPWY.z+26], [xF+9, EXPWY.z+9], [xF+18, EXPWY.z], [xF+34, EXPWY.z]);
+  /* La sopraelevata finisce a EXPWY.to: la coda va tagliata li' dentro, o
+     spostando il blocco verso destra il ponte sporge oltre il suo capo e
+     resta a sbalzo nel vuoto. Il limite si legge dalla sopraelevata stessa,
+     non si scrive a mano. */
+  const xFin=Math.min(xF+34, EXPWY.to-24);
+  P.push([xF+3, EXPWY.z+26], [xF+9, EXPWY.z+9], [xF+18, EXPWY.z], [xFin, EXPWY.z]);
   const curva=new THREE.CatmullRomCurve3(
     P.map(p=>new THREE.Vector3(p[0],0,p[1])),false,'catmullrom',.35);
 
@@ -2804,6 +2809,17 @@ UI.textContent=`
 #clock{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(40,32,52,.55);
   color:#fff;padding:5px 12px;border-radius:999px;font-size:11.5px;letter-spacing:.05em;
   border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(6px)}
+/* Righello: dice dove sta il personaggio. Serve per piazzare le cose dove le
+   vuoi tu invece che dove credo io — cammini fin li', leggi i numeri, me li
+   dici. Si accende e si spegne con la M, e cliccandolo copia le coordinate. */
+#pos{position:absolute;top:40px;left:50%;transform:translateX(-50%);
+  background:rgba(20,16,30,.72);color:#9fe8b0;padding:5px 12px;border-radius:8px;
+  font:600 12.5px ui-monospace,"SF Mono",Menlo,monospace;letter-spacing:.06em;
+  border:1px solid rgba(159,232,176,.35);cursor:pointer;user-select:none;
+  white-space:pre;display:none;z-index:12}
+#pos.on{display:block}
+#pos b{color:#ffd28a;font-weight:700}
+#pos i{color:#8fa0c8;font-style:normal}
 #bar{position:absolute;top:44px;left:50%;transform:translateX(-50%);width:170px;height:7px;
   background:rgba(255,255,255,.25);border-radius:99px;overflow:hidden;display:none}
 #bar i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#ffd166,#e2749d)}
@@ -2833,7 +2849,7 @@ UI.textContent=`
 }`;
 document.head.appendChild(UI);
 const gui=document.createElement('div');gui.id='gui';
-gui.innerHTML=`<div id="obj"></div><div id="clock"></div><div id="bar"><i></i></div>
+gui.innerHTML=`<div id="obj"></div><div id="clock"></div><div id="pos"></div><div id="bar"><i></i></div>
 <button id="act"></button>
 <div id="dlg"><div class="who"></div><div class="txt"></div><div class="ch"></div><div class="go">tocca per continuare</div></div>
 <div id="toast"></div>`;
@@ -3076,10 +3092,44 @@ let sunH=9;
 const _acquaBlu=new THREE.Color(0x67b4d8).convertSRGBToLinear();
 
 /* ---------- aggiornamento di gioco ---------- */
+/* ============================================================
+   RIGHELLO
+   Dice dove sta il personaggio, in coordinate del mondo e — la riga che serve
+   davvero — di quanto e' scostato dall'arco. Cammini dove vuoi che stia una
+   cosa, leggi i numeri, me li detti: finisce li' al metro, invece che dove
+   credevo io. "Destra" e "sinistra" cambiano a seconda di dove guardi; est e
+   nord no, ed e' per questo che sono scritti anche quelli.
+   Si accende con M. Cliccandolo copia la riga negli appunti.
+   ============================================================ */
+const $pos=document.getElementById('pos');
+let righelloOn=false;
+addEventListener('keydown',e=>{
+  if(e.code==='KeyM'){righelloOn=!righelloOn;$pos.classList.toggle('on',righelloOn);}
+});
+$pos.addEventListener('click',()=>{
+  const t=$pos.textContent.replace(/\s+/g,' ').trim();
+  if(navigator.clipboard)navigator.clipboard.writeText(t);
+  toast('coordinate copiate');
+});
+function righello(){
+  if(!righelloOn)return;
+  const p=player.position;
+  const dx=p.x-ARCO.x, dz=p.z-ARCO.z;
+  const bussola=['nord','nord-est','est','sud-est','sud','sud-ovest','ovest','nord-ovest'];
+  // +z e' nord, +x e' est: la direzione si ricava dallo yaw della camera
+  const dir=bussola[Math.round(((yaw%(Math.PI*2))+Math.PI*2)%(Math.PI*2)/(Math.PI/4))%8];
+  $pos.innerHTML=
+    `x <b>${p.x.toFixed(1)}</b>   z <b>${p.z.toFixed(1)}</b>   <i>quota ${p.y.toFixed(2)}</i>\n`+
+    `dall'arco:  <b>${dx>=0?'+':''}${dx.toFixed(1)}</b> a est   `+
+    `<b>${dz>=0?'+':''}${dz.toFixed(1)}</b> a nord\n`+
+    `<i>stai guardando verso ${dir}</i>`;
+}
+
 function updateGame(dt){
   G.time+=dt*G.speedDay;
   if(G.time>=1){G.time=0;G.day++;toast('Giorno '+G.day);}
   applyDay();
+  righello();
 
   // azione vicina
   nearNpc=null;let best=3.4;
