@@ -2728,14 +2728,26 @@ const PONTE_M=(function rampaEViadotto(){
      heightAt che ora sceglie il piano alla portata di chi domanda, invece del
      piu' alto in assoluto, quindi il viadotto non aggancia piu' chi ci passa
      sotto. Fermandosi a una quota qualunque, li' si cadeva di sotto. */
+  /* La griglia del terreno conosce solo rettangoli allineati agli assi, quindi
+     per ogni tratto si registra il rettangolo che CONTIENE la sua campata —
+     ricavato dalla direzione del tratto e dalla normale, non fissato a mano.
+     Prima era sempre largo in X e stretto in Z: sui tratti che corrono
+     est-ovest, cioe' tutta la curva in cima, stava di traverso alla carreggiata
+     e lasciava buchi. Era li' che si cadeva "andando piu' in la'". */
+  const SEMI=VIA.w/2-.35;                 // fino a filo parapetto
   for(let i=1;i<st.length;i++){
     const a=st[i-1], c=st[i];
-    const L=Math.hypot(c.x-a.x,c.z-a.z)*1.7;
-    GROUND.addPlat((a.x+c.x)/2,(a.z+c.z)/2,VIA.w*.86,L,c.y+.34);
-    // parapetti solidi solo dove si e' gia' staccati da terra, o murerebbero
-    // la strada al livello del suolo
-    if(c.y>.9)[-1,1].forEach(k=>
-      GROUND.addWall(c.x+k*c.nx*(VIA.w/2), c.z+k*c.nz*(VIA.w/2), .6, L));
+    const dx=Math.abs(c.x-a.x), dz=Math.abs(c.z-a.z);
+    const w=(dx+2*SEMI*Math.abs(c.nx))*1.25;
+    const d=(dz+2*SEMI*Math.abs(c.nz))*1.25;
+    GROUND.addPlat((a.x+c.x)/2,(a.z+c.z)/2,w,d,c.y+.34);
+    /* Parapetti: fermano anche di fianco, e vanno messi appena il ponte si
+       stacca da terra — passandoci attraverso si finiva sotto l'impalcato, da
+       dove non si risale piu' perche' il gradino massimo e' mezzo metro. */
+    if(c.y>.45)[-1,1].forEach(k=>{
+      const px=c.x+k*c.nx*(VIA.w/2+.1), pz=c.z+k*c.nz*(VIA.w/2+.1);
+      GROUND.addWall(px,pz,dx*1.3+.8,dz*1.3+.8);
+    });
   }
 
   // pile e rilevato: questi restano pezzi distinti, perche' pezzi distinti sono
@@ -3274,32 +3286,152 @@ function righello(){
    E' la ragione per cui il ponte si apre: senza qualcosa che passi, alzarlo e'
    un gesto senza motivo. Navigano lungo il canale e il ponte resta aperto
    finche' non sono passati — non per un timer deciso a tavolino. */
-function traghetto(col){
+function traghetto(col,nome){
   const g=new THREE.Group();
-  const scafo=new THREE.Mesh(new THREE.SphereGeometry(1,20,10,0,6.284,Math.PI/2,Math.PI/2),
-    M({map:cementoTex,color:col}));
-  scafo.scale.set(2.4,1.5,8.0);scafo.castShadow=true;g.add(scafo);
-  // murata e ponte di coperta
-  box(4.9,.5,15.4,M({map:cementoTex,color:col}),0,.18,0,g);
-  box(4.4,.12,14.6,C(0xd8cfbd),0,.46,0,g);
-  // sovrastruttura con oblo' accesi
-  const cab=box(3.2,1.9,5.2,C(0xf2efe6),0,1.42,-1.6,g);cab.castShadow=true;
-  box(3.4,.16,5.4,C(0xcfc6b6),0,2.44,-1.6,g);
-  for(let i=-1;i<=1;i++)[-1,1].forEach(k=>{
-    const o=new THREE.Mesh(new THREE.CircleGeometry(.22,12),
-      new THREE.MeshBasicMaterial({color:0xffe6b0}));
-    o.position.set(k*1.61,1.5,-1.6+i*1.5);o.rotation.y=k*Math.PI/2;g.add(o);
+  const SCAFO=M({map:cementoTex,color:col}),
+        BIANCO=M({map:cementoTex,color:0xf4f1e8}),
+        PONTE=M({map:wood,color:0xc0a074}),
+        ROSSO=C(0xb8433c), NERO=C(0x3a3640), OTTONE=C(0xd8b96a),
+        VETRO=new THREE.MeshBasicMaterial({color:0x4a6b86}),
+        ACCESO=new THREE.MeshBasicMaterial({color:0xffe6b0});
+  const L=26, B=7;                       // lunghezza e larghezza fuori tutto
+
+  /* Scafo: sezioni che si stringono verso prua, non una scatola. Il profilo
+     e' preso da una funzione della posizione longitudinale, cosi' fianco e
+     coperta seguono la stessa linea e la carena non ha spigoli. */
+  const largh=t=>{                       // t da -1 (poppa) a +1 (prua)
+    const p=Math.max(0,1-Math.pow(Math.max(0,t),2.4));
+    return B/2*(t<-.86? .82 : .34+.66*p+.34*(1-Math.abs(t))*0);
+  };
+  const N=26;
+  for(let i=0;i<N;i++){
+    const t0=-1+2*i/N, t1=-1+2*(i+1)/N;
+    const w0=largh(t0), w1=largh(t1), wm=(w0+w1)/2;
+    const zc=(t0+t1)/2*L/2;
+    const sez=box(wm*2,2.2,L/N*1.04,SCAFO,0,-.35,zc,g);
+    sez.castShadow=true;
+    // murata chiara sopra la linea di galleggiamento
+    box(wm*2+.12,.85,L/N*1.04,BIANCO,0,.92,zc,g);
+    // fascia di colore alla cinta
+    box(wm*2+.16,.16,L/N*1.04,ROSSO,0,.45,zc,g);
+  }
+  // coperta di legno
+  for(let i=0;i<N;i++){
+    const t=-1+2*(i+.5)/N;
+    box(largh(t)*2-.2,.1,L/N*1.05,PONTE,0,1.34,t*L/2,g);
+  }
+  // parapetti di coperta: montanti e due correnti, tutt'attorno
+  for(let i=0;i<N;i+=1){
+    const t=-1+2*(i+.5)/N, w=largh(t);
+    [-1,1].forEach(k=>{
+      if(i%2===0)cyl(.04,.04,1.0,NERO,k*(w-.06),1.85,t*L/2,5,g);
+      box(.05,.05,L/N*1.05,NERO,k*(w-.06),2.28,t*L/2,g);
+      box(.05,.05,L/N*1.05,NERO,k*(w-.06),1.96,t*L/2,g);
+    });
+  }
+
+  /* Sovrastruttura su due livelli: salone passeggeri e plancia. */
+  const salone=box(B-1.6,2.5,12,BIANCO,0,2.64,-1.2,g);salone.castShadow=true;
+  box(B-1.2,.18,12.4,C(0xdcd6c8),0,3.98,-1.2,g);            // tetto del salone
+  // finestrature continue del salone
+  for(let i=0;i<9;i++){
+    const z=-6.6+i*1.5;
+    [-1,1].forEach(k=>{
+      box(.06,1.15,1.24,ACCESO,k*(B/2-.78),2.9,z-1.2,g).castShadow=false;
+      box(.09,.1,1.32,NERO,k*(B/2-.76),2.28,z-1.2,g);        // traversa sotto
+    });
+  }
+  // porte a poppa del salone
+  [-1,1].forEach(k=>{
+    box(.9,1.9,.08,C(0x8a6a4a),k*1.3,2.35,4.85,g);
+    box(.3,.5,.06,ACCESO,k*1.3,2.9,4.9,g).castShadow=false;
   });
-  cyl(.42,.46,2.1,C(0xe8e4da),0,2.9,-2.4,10,g);            // fumaiolo
-  cyl(.44,.44,.6,C(0xc0392f),0,3.45,-2.4,10,g);            // fascia rossa
-  cyl(.07,.07,3.2,C(0xd8d4cc),0,2.6,4.6,6,g);              // albero
-  box(.9,.6,.05,C(0xd8443c),.5,3.7,4.6,g);                 // bandiera
+  // plancia, piu' stretta e spostata a prua
+  const plancia=box(B-3.0,1.9,4.4,BIANCO,0,4.98,-3.4,g);plancia.castShadow=true;
+  box(B-2.6,.16,4.8,C(0xdcd6c8),0,6.0,-3.4,g);
+  for(let i=0;i<3;i++){                                       // vetrata di plancia
+    const z=-5.0+i*1.6;
+    box(B-2.9,1.15,.07,VETRO,0,5.15,z-.1,g).castShadow=false;
+  }
+  [-1,1].forEach(k=>box(.07,1.15,4.2,VETRO,k*(B/2-1.55),5.15,-3.4,g).castShadow=false);
+  // alette di plancia
+  [-1,1].forEach(k=>{
+    box(1.1,.12,1.6,C(0xdcd6c8),k*(B/2-.9),4.2,-3.4,g);
+    for(let i=0;i<3;i++)cyl(.035,.035,.9,NERO,k*(B/2-.5),4.6,-4.0+i*.8,5,g);
+  });
+
+  // fumaiolo inclinato con fasce e cappello
+  const fum=cyl(.52,.6,2.6,BIANCO,0,5.5,1.6,12,g);fum.rotation.x=-.12;fum.castShadow=true;
+  const fascia=cyl(.62,.62,.75,ROSSO,0,6.2,1.52,12,g);fascia.rotation.x=-.12;
+  cyl(.64,.58,.22,NERO,0,6.72,1.45,12,g).rotation.x=-.12;
+  // albero con traversa, radar e luci
+  cyl(.09,.09,3.4,C(0xdcd6c8),0,7.3,-3.0,6,g);
+  box(2.6,.09,.09,C(0xdcd6c8),0,8.3,-3.0,g);
+  const radar=box(1.5,.12,.3,C(0xe8e4da),0,8.9,-3.0,g);
+  cyl(.16,.16,.34,ACCESO,0,9.1,-3.0,8,g).castShadow=false;
+  // scialuppe su gru
+  [-1,1].forEach(k=>{
+    const sc=new THREE.Mesh(new THREE.SphereGeometry(1,12,7,0,6.284,Math.PI/2,Math.PI/2),
+      C(0xe0913c));
+    sc.scale.set(.55,.5,1.9);sc.position.set(k*(B/2-.55),4.3,2.9);sc.castShadow=true;g.add(sc);
+    box(1.2,.08,.5,C(0xd8d2c4),k*(B/2-.55),4.5,2.9,g);
+    [-1,1].forEach(j=>{
+      const gru=cyl(.07,.07,1.5,NERO,k*(B/2-.35),4.0,2.9+j*1.3,5,g);gru.rotation.z=k*.25;
+    });
+  });
+  // salvagenti
+  [-1,1].forEach(k=>[-3,3.6].forEach(z=>{
+    const sv=new THREE.Mesh(new THREE.TorusGeometry(.3,.09,6,14),C(0xe85a3c));
+    sv.position.set(k*(B/2-.12),2.0,z);sv.rotation.y=Math.PI/2;g.add(sv);
+  }));
+  // ancora, bitte e verricello a prua
+  box(.7,.9,.12,NERO,0,.9,L/2-.9,g);
+  cyl(.3,.34,.5,C(0x9aa3ab),0,1.75,L/2-2.2,g);
+  [-1,1].forEach(k=>cyl(.13,.15,.5,NERO,k*1.1,1.6,L/2-3.2,g));
+  // fanali di via: rosso a sinistra, verde a dritta
+  cyl(.14,.14,.3,new THREE.MeshBasicMaterial({color:0xd8443c}),-(B/2-.5),4.3,-3.4,8,g).castShadow=false;
+  cyl(.14,.14,.3,new THREE.MeshBasicMaterial({color:0x3cb85a}), (B/2-.5),4.3,-3.4,8,g).castShadow=false;
+  // nome sulla murata e bandiera a poppa
+  [-1,1].forEach(k=>{
+    const t=CT(256,64,(x,w,h)=>{
+      x.clearRect(0,0,w,h);
+      x.fillStyle='#2b2430';x.font='bold 40px "Hiragino Sans",sans-serif';
+      x.textAlign='center';x.fillText(nome,w/2,46);
+    });
+    const tab=new THREE.Mesh(new THREE.PlaneGeometry(3.4,.85),
+      new THREE.MeshBasicMaterial({map:t,transparent:true}));
+    tab.position.set(k*(B/2+.1),1.0,-L/2+4.5);tab.rotation.y=k*Math.PI/2;
+    tab.castShadow=false;g.add(tab);
+  });
+  cyl(.05,.05,1.8,C(0xdcd6c8),0,2.2,-L/2+.5,5,g);
+  box(1.0,.62,.04,C(0xf4f1e8),.55,2.85,-L/2+.5,g);
+  box(.3,.3,.05,C(0xd8443c),.55,2.85,-L/2+.46,g);
+
+  /* Passeggeri: stanno in coperta e al parapetto. Sono la ragione per cui il
+     traghetto si guarda — una nave vuota legge come un modellino. */
+  const posti=[[-2.2,6.2],[-.4,6.6],[1.6,6.1],[2.6,4.4],[-2.6,4.2],
+               [2.9,-8.6],[-2.9,-8.2],[.4,-9.4],[2.7,.6],[-2.7,1.2]];
+  const vestiti=[
+    {skin:0xf6dcc8,skinCss:'#f6dcc8',eye:'#4a6b9c',top:0xe8dcd0,bottom:0x3d4668,hair:0x3b2f38,pony:true},
+    {skin:0xf2cfae,skinCss:'#f2cfae',eye:'#5a4632',top:0x9fb8d4,bottom:0x424a5c,hair:0x2f2a33,hat:0xdcd6c8},
+    {skin:0xf8e0cc,skinCss:'#f8e0cc',eye:'#7a5b3f',top:0xe9a7b8,bottom:0x5b4a6b,hair:0x4a3a34,bun:true,skirt:true},
+    {skin:0xeed3b6,skinCss:'#eed3b6',eye:'#3f4a5f',top:0x2f4f7a,bottom:0x22304a,hair:0x2a2530,scarf:0xb8908f}];
+  const gente=[];
+  posti.forEach((q,i)=>{
+    const h=makeHuman(Object.assign({},vestiti[i%4],
+      {scale:.92+((i*37)%7)/40, testa:.98, spalle:.98+((i*13)%5)/50}));
+    h.root.position.set(q[0],1.44,q[1]);
+    h.root.rotation.y=q[1]>0?Math.PI:0;
+    g.add(h.root);gente.push(h);
+  });
+
   g.visible=false;scene.add(g);
+  g.userData.gente=gente;
   return g;
 }
 
 const TRAGHETTI=(()=>{
-  const l=[traghetto(0xe8e2d4),traghetto(0xc9d8e2)];
+  const l=[traghetto(0xe8e2d4,'さくら丸'),traghetto(0xc9d8e2,'みどり丸')];
   return {l, attivo:null, x:0, verso:1};
 })();
 
@@ -3320,6 +3452,11 @@ function updateTraghetto(dt,t){
   g.position.set(T.x, FIUME.y-.35+Math.sin(t*1.2)*.05, FIUME.z);
   g.rotation.z=Math.sin(t*.9)*.02;
   g.rotation.x=Math.sin(t*1.5)*.012;
+  // i passeggeri respirano e si guardano intorno, o sembrano statue
+  (g.userData.gente||[]).forEach((h,i)=>{
+    h.pose(t*1.05+i*1.7,.05);
+    h.headP.rotation.y=Math.sin(t*.5+i)*.5;
+  });
   if(Math.abs(T.x)>80){g.visible=false;T.attivo=null;return false;}
   return true;
 }
