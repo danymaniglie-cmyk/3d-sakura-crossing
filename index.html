@@ -676,6 +676,7 @@ const groundTex=grass.clone();groundTex.repeat.set(110,110);
    il fondo, il prato non puo' essere un piano pieno — va bucato qui, alla
    nascita, altrimenti coprirebbe tutto quello che sta sotto lo zero. */
 const FIUME={z:66, sem:22, y:-1.55, fondo:-3.4, da:-220, a:220};
+const VIA_VARCO=6.2;   // mezza luce del varco sulla sponda, = mezza carreggiata
 (function pratoBucato(){
   const s=new THREE.Shape();
   s.moveTo(-220,-220);s.lineTo(220,-220);s.lineTo(220,220);s.lineTo(-220,220);s.closePath();
@@ -2483,17 +2484,15 @@ const FIUME_G=(()=>{
     const muro=box(L,3.6,.9,M({map:cementoTex}),0,FIUME.fondo+1.8,zb+k*.45,g);
     muro.receiveShadow=true;
     box(L,.34,1.5,M({map:pave}),0,.15,zb+k*1.2,g);          // cordolo/camminamento
-    for(let x=FIUME.da+3;x<FIUME.a;x+=3.2){
-      if(Math.abs(x)<9)continue;                              // varco del ponte
-      cyl(.05,.05,1.0,C(0x9aa3ab),x,.8,zb+k*.62,6,g);
-      GROUND.addWall(x,zb+k*.62,.4,.4);
-    }
-    const cor=box(L,.09,.09,C(0x9aa3ab),0,1.28,zb+k*.62,g);
+    /* Via l'inferiata di paletti e corrimano che correva per tutti i
+       quattrocentoquaranta metri: era il disegno vecchio, da quando la sponda
+       era il bordo di una pozza. Un canale urbano ha il cordolo e basta —
+       a fermare chi cammina ci pensa la barriera invisibile, non un tubo. */
     GROUND.addPlat(0,zb+k*1.2,L,1.5,.32);
     /* Barriera contro la caduta nel canale, ma spezzata sul varco del ponte:
        una parete continua avrebbe murato la via principale sulle due rive,
        chiudendo il quartiere invece di collegarlo. */
-    [[FIUME.da,-11],[11,FIUME.a]].forEach(([x0,x1])=>
+    [[FIUME.da,-VIA_VARCO],[VIA_VARCO,FIUME.a]].forEach(([x0,x1])=>
       GROUND.addWall((x0+x1)/2,zb+k*.62,x1-x0,.5));
   });
 
@@ -3172,7 +3171,83 @@ function righello(){
    battenti lo usano con segno opposto, cosi' non possono disallinearsi.
    Ruotano attorno all'asse X perche' li' la carreggiata corre lungo z: la
    cerniera e' la sponda, e il capo libero e' quello che si alza. */
-const PMOB={fase:'chiuso', t:26, ap:0, sb:0, lamp:0, acceso:false, MAX:1.12};
+/* Sassi e calcinacci.
+   Fisica vera, non un'animazione: la velocita' iniziale di ogni scheggia e'
+   quella tangenziale del punto del battente da cui si stacca — omega per raggio,
+   perpendicolare al braccio — quindi piu' il ponte e' aperto e piu' lontano
+   vengono scagliati. Poi solo gravita' e integrazione a passi.
+   Quando toccano il pelo dell'acqua si spegne il sasso e nasce un cerchio che
+   si allarga: e' il tocco che fa leggere la caduta come pesante. */
+const SASSI=(()=>{
+  const geo=[new THREE.IcosahedronGeometry(.16,0),
+             new THREE.IcosahedronGeometry(.11,0),
+             new THREE.DodecahedronGeometry(.13,0)];
+  const mat=M({map:cementoTex,color:0xa8a29a});
+  const vivi=[], liberi=[];
+  for(let i=0;i<26;i++){
+    const m=new THREE.Mesh(geo[i%3],mat);
+    m.castShadow=true;m.visible=false;scene.add(m);liberi.push(m);
+  }
+  // cerchi dello spruzzo
+  const onde=[];
+  for(let i=0;i<10;i++){
+    const r=new THREE.Mesh(new THREE.RingGeometry(.25,.42,20),
+      new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,
+        side:THREE.DoubleSide,depthWrite:false}));
+    r.rotation.x=-Math.PI/2;r.visible=false;r.layers.enable(1);scene.add(r);
+    onde.push({m:r,t:0});
+  }
+  return {vivi,liberi,onde};
+})();
+
+function lanciaSasso(cern,verso,omega,ap){
+  if(!SASSI.liberi.length)return;
+  const m=SASSI.liberi.pop();
+  // punto di distacco: da qualche parte lungo il braccio gia' sollevato
+  const braccio=4+Math.random()*14;
+  const ang=ap*PMOB.MAX;
+  const dz=verso*braccio*Math.cos(ang), dy=braccio*Math.sin(ang);
+  m.position.set(cern.x+(Math.random()-.5)*VIA.w*.8, cern.y+dy+.5, cern.z+dz);
+  // tangenziale: perpendicolare al braccio, modulo omega*raggio
+  const v=omega*braccio;
+  const vel=new THREE.Vector3((Math.random()-.5)*.6,
+                              v*Math.cos(ang), -verso*v*Math.sin(ang));
+  m.visible=true;
+  SASSI.vivi.push({m,vel,rot:new THREE.Vector3(
+    (Math.random()-.5)*6,(Math.random()-.5)*6,(Math.random()-.5)*6)});
+}
+
+function spruzzo(x,z){
+  const o=SASSI.onde.find(o=>!o.m.visible);
+  if(!o)return;
+  o.m.position.set(x,FIUME.y+.06,z);o.m.scale.setScalar(.4);
+  o.m.visible=true;o.t=0;
+}
+
+function updateSassi(dt){
+  for(let i=SASSI.vivi.length-1;i>=0;i--){
+    const s=SASSI.vivi[i];
+    s.vel.y-=9.81*dt;                       // gravita', nient'altro
+    s.m.position.addScaledVector(s.vel,dt);
+    s.m.rotation.x+=s.rot.x*dt;s.m.rotation.y+=s.rot.y*dt;s.m.rotation.z+=s.rot.z*dt;
+    const p=s.m.position;
+    const nelCanale=Math.abs(p.z-FIUME.z)<FIUME.sem;
+    if(p.y<=(nelCanale?FIUME.y:0)+.1){
+      if(nelCanale)spruzzo(p.x,p.z);
+      s.m.visible=false;SASSI.liberi.push(s.m);SASSI.vivi.splice(i,1);
+    }
+  }
+  SASSI.onde.forEach(o=>{
+    if(!o.m.visible)return;
+    o.t+=dt;
+    o.m.scale.setScalar(.4+o.t*5.2);
+    o.m.material.opacity=Math.max(0,.75-o.t*.85);
+    if(o.t>.95)o.m.visible=false;
+  });
+}
+
+const PMOB={fase:'chiuso', t:26, ap:0, sb:0, lamp:0, acceso:false, MAX:1.12,
+            ePrec:0, osc:0, semina:0};
 function updatePonteMobile(dt){
   if(!PONTE_M.battenti.length)return;
   const P=PMOB;
@@ -3198,7 +3273,28 @@ function updatePonteMobile(dt){
   }
   // raccordo dolce: un battente non parte e non si ferma di scatto
   const e=P.ap*P.ap*(3-2*P.ap);
-  PONTE_M.battenti.forEach(b=>{b.g.rotation.x=-b.verso*e*P.MAX;});
+  const omega=dt>0 ? (e-P.ePrec)*P.MAX/dt : 0;   // velocita' angolare vera
+  P.ePrec=e;
+
+  /* Assestamento: arrivando in appoggio l'impalcato rimbalza appena e si ferma.
+     Senza, la chiusura finisce di colpo e trecento tonnellate sembrano cartone. */
+  if(P.ap<=0 && P.fase==='rialza' && P.osc===0 && P.osc!==-1){P.osc=1;}
+  if(P.osc>0)P.osc=Math.max(0,P.osc-dt*2.4);
+  const molla=P.osc>0 ? Math.sin(P.osc*20)*P.osc*P.osc*.05 : 0;
+
+  PONTE_M.battenti.forEach(b=>{b.g.rotation.x=-b.verso*(e*P.MAX+molla);});
+
+  /* Calcinacci: si staccano mentre il ponte si muove, tanto piu' spesso quanto
+     piu' e' veloce. La velocita' iniziale gliela da' il battente stesso. */
+  if(Math.abs(omega)>.02 && SASSI.liberi.length){
+    P.semina-=dt*Math.abs(omega)*9;
+    if(P.semina<=0){
+      P.semina=.35+Math.random()*.5;
+      const b=PONTE_M.battenti[Math.random()<.5?0:1];
+      lanciaSasso(b.g.position,b.verso,omega,e);
+    }
+  }
+  updateSassi(dt);
   // sbarra: 0 = alzata (si passa), 1 = abbassata di traverso sulla carreggiata
   PONTE_M.sbarre.forEach(g=>{g.rotation.z=-(1-P.sb)*Math.PI/2;});
   // rosse alternate finche' non e' tutto richiuso
