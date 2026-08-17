@@ -4237,7 +4237,13 @@ function tick(){
   if(!GUIDA.su){
     const px=player.position.x, pz=player.position.z;
     const suolo=GROUND.heightAt(px,pz,player.position.y);
-    NUOTO.on=dentroAcqua(px,pz)&&player.position.y<.35&&suolo<.35;
+    /* Si nuota solo se si e' DAVVERO al livello dell'acqua, non se ci si trova
+       sopra a una quota bassa: l'impalcato del ponte sul canale sta fra dieci
+       centimetri e un metro e mezzo, e con la soglia a zero e' bastato
+       camminarci sopra per essere dichiarati in acqua e sbattuti di sotto.
+       Il confronto va fatto col pelo dell'acqua, che e' l'unica quota che
+       significa "sto galleggiando". */
+    NUOTO.on=dentroAcqua(px,pz)&&player.position.y<FIUME.y+1.0;
     const gy=NUOTO.on?FIUME.y+.30:suolo;
     player.position.y+=(gy-player.position.y)*Math.min(1,dt*(NUOTO.on?3.4:14));
     if(Math.abs(gy-player.position.y)<.004)player.position.y=gy;
