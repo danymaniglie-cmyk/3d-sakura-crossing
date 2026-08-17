@@ -4768,9 +4768,16 @@ function tick(){
         player.position.y+=(suolo-player.position.y)*Math.min(1,dt*14);
         if(Math.abs(suolo-player.position.y)<.004)player.position.y=suolo;
       }
+      /* Si torna dritti in un terzo di secondo, misurato sul TEMPO e non sui
+         fotogrammi: con lo smorzamento per frame la durata dipendeva da quanto
+         va veloce la macchina, e su una lenta si continuava a nuotare all'
+         asciutto per secondi. Le braccia e le gambe non serve toccarle, le
+         riscrive pose() a ogni giro. */
       if(playerH.hips.rotation.x!==0){
-        playerH.hips.rotation.x*=.8;playerH.headP.rotation.x*=.8;
-        if(Math.abs(playerH.hips.rotation.x)<.01){playerH.hips.rotation.x=0;playerH.headP.rotation.x=0;}
+        const k=Math.pow(1e-4,dt);
+        playerH.hips.rotation.x*=k;playerH.headP.rotation.x*=k;
+        if(Math.abs(playerH.hips.rotation.x)<.008){
+          playerH.hips.rotation.x=0;playerH.headP.rotation.x=0;}
       }
     }
   }
