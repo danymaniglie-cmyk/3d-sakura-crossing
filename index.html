@@ -51,6 +51,14 @@
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#584a63;
     text-align:center;padding:10px 16px;overflow:auto}
   #veil h1{font-size:clamp(24px,6.5vw,42px);font-weight:800;color:#3f3550;letter-spacing:.02em}
+  #src{margin-top:20px;color:#5a5068;font-size:13px;font-weight:700;letter-spacing:.04em;
+    text-decoration:none;border:1.5px solid rgba(90,80,104,.35);border-radius:999px;
+    padding:8px 18px;background:rgba(255,255,255,.35);transition:background .2s}
+  #src:hover{background:rgba(255,255,255,.7)}
+  #angolo{position:absolute;bottom:8px;left:10px;color:rgba(255,255,255,.75);
+    font-size:11px;font-weight:700;text-decoration:none;text-shadow:0 1px 4px rgba(40,30,60,.7);
+    pointer-events:auto;z-index:11}
+  #angolo:hover{color:#fff}
   #veil h1 span{color:#e2749d}
   #veil .jp{font-size:13px;letter-spacing:.5em;color:#8a7d94}
   #veil p{font-size:13.5px;max-width:420px;line-height:1.6;opacity:.85}
@@ -89,12 +97,19 @@
   <div id="view">1ª / 3ª</div>
   <div id="run">CORRI</div>
   <div id="giu">GIÙ</div>
+  <a id="angolo" href="https://github.com/danymaniglie-cmyk/3d-sakura-crossing"
+     target="_blank" rel="noopener">★ GitHub</a>
 </div>
 <div id="veil">
   <div class="jp">ふみきり</div>
   <h1>Sakura <span>Crossing</span></h1>
   <p>Sei nuovo del quartiere. Sei persone vivono qui: parlaci, accetta i loro incarichi, guadagnati la loro fiducia. I giorni passano e non finiscono mai.</p>
   <button id="go">INIZIA LA STORIA</button>
+  <!-- Un modo per contare i giocatori senza tracciare nessuno: chi clicca qui
+       diventa una visita vera al repository, e quella GitHub la conta. E' anche
+       il solo canale da cui possono arrivare stelle e contributi. -->
+  <a id="src" href="https://github.com/danymaniglie-cmyk/3d-sakura-crossing"
+     target="_blank" rel="noopener">★ codice sorgente · GitHub</a>
 </div>
 <script src="vendor/three.min.js"></script>
 <script src="vendor/BufferGeometryUtils.js"></script>
