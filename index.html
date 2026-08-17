@@ -2550,6 +2550,11 @@ const FIUME_G=(()=>{
   // fondo del canale
   const fondo=plane(L,W,M({map:rivaTex}),0,FIUME.fondo,FIUME.z);
   fondo.receiveShadow=true;g.add(fondo);
+  /* Il letto va dichiarato come piano calpestabile. Senza, il terreno tornava
+     lo zero di riserva e chi si buttava dal ponte atterrava su un pavimento
+     invisibile a pelo d'erba senza mai entrare in acqua. Ora si affonda fino
+     al fondale, e la sabbia si tocca. */
+  GROUND.addPlat(0,FIUME.z,L,W,FIUME.fondo+.15);
 
   /* Acqua vera: THREE.Water dagli esempi ufficiali della r128, vendorizzato
      come three.js stesso. Non e' piu' un disegno che scorre — riflette il cielo
@@ -2684,6 +2689,7 @@ const FIUME_G=(()=>{
   AFFLUENTI.forEach(a=>{
     const L=a.a-a.da, C0=(a.da+a.a)/2, W2=a.sem*2;
     plane(W2,L,M({map:rivaTex}),a.x,FIUME.fondo+.6,C0);            // fondo
+    GROUND.addPlat(a.x,C0,W2,L,FIUME.fondo+.75);                   // ci si cammina
     const t=acquaTex.clone();t.needsUpdate=true;
     t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(W2/22,L/22);
     const mat=new THREE.MeshBasicMaterial({map:t});
@@ -4058,7 +4064,11 @@ function updateAuto(dt){
      Cadere non dipende dall'andare avanti. */
   {
     const px=A.g.position.x, pz=A.g.position.z;
-    const inAcqua=dentroAcqua(px,pz);
+    /* Sopra il canale c'e' il ponte: stare dentro l'area del fiume non vuol
+       dire essere in acqua. Senza il confronto con la quota, arrivando sul
+       ponte l'auto veniva dichiarata in acqua e affondava attraverso
+       l'impalcato — succedeva esattamente a z=44, sulla sponda. */
+    const inAcqua=dentroAcqua(px,pz)&&A.g.position.y<FIUME.y+1.0;
     const appoggio=inAcqua?FIUME.y-.25:GROUND.heightAt(px,pz,A.g.position.y);
     if(A.g.position.y>appoggio+.10){
       A.vy=(A.vy||0)-9.81*dt;
@@ -4542,24 +4552,40 @@ function tick(){
   if(!GUIDA.su){
     const px=player.position.x, pz=player.position.z;
     const suolo=GROUND.heightAt(px,pz,player.position.y);
-    /* Si nuota solo se si e' DAVVERO al livello dell'acqua, non se ci si trova
-       sopra a una quota bassa: l'impalcato del ponte sul canale sta fra dieci
-       centimetri e un metro e mezzo, e con la soglia a zero e' bastato
-       camminarci sopra per essere dichiarati in acqua e sbattuti di sotto.
-       Il confronto va fatto col pelo dell'acqua, che e' l'unica quota che
-       significa "sto galleggiando". */
-    NUOTO.on=dentroAcqua(px,pz)&&player.position.y<FIUME.y+1.0;
-    const gy=NUOTO.on?FIUME.y+.30:suolo;
-    player.position.y+=(gy-player.position.y)*Math.min(1,dt*(NUOTO.on?3.4:14));
-    if(Math.abs(gy-player.position.y)<.004)player.position.y=gy;
+    const pelo=FIUME.y+.28, fondale=FIUME.fondo+.55;
+    NUOTO.on=dentroAcqua(px,pz)&&player.position.y<pelo+.7;
     if(NUOTO.on){
-      // bracciata: busto inclinato in avanti e ondeggio col pelo dell'acqua
-      playerH.hips.rotation.x=.42+Math.sin(clock.elapsedTime*2.6)*.06;
-      playerH.headP.rotation.x=-.34;
-      player.position.y+=Math.sin(clock.elapsedTime*1.8)*.03;
-    } else if(playerH.hips.rotation.x!==0){
-      playerH.hips.rotation.x*=.8;playerH.headP.rotation.x*=.8;
-      if(Math.abs(playerH.hips.rotation.x)<.01){playerH.hips.rotation.x=0;playerH.headP.rotation.x=0;}
+      /* Sott'acqua ci si muove in tre dimensioni: SPAZIO per risalire, C per
+         scendere. Il galleggiamento riporta piano verso il pelo, l'acqua frena
+         molto, e la velocita' con cui si e' arrivati si conserva — e' per
+         questo che cadendo dal ponte si va sotto invece di restare a
+         galleggiare in superficie come su un pavimento. */
+      const su=keys['Space']?1:0, giu=(keys['KeyC']||keys['ShiftLeft'])?1:0;
+      NUOTO.vy=(NUOTO.vy||0)+(su-giu)*7*dt+(pelo-player.position.y)*1.1*dt;
+      NUOTO.vy*=Math.pow(.08,dt);
+      player.position.y+=NUOTO.vy*dt;
+      if(player.position.y<fondale){player.position.y=fondale;NUOTO.vy=0;}
+      if(player.position.y>pelo){player.position.y=pelo;NUOTO.vy=Math.min(0,NUOTO.vy);}
+      NUOTO.giu=pelo-player.position.y;                 // quanto si e' immersi
+      playerH.hips.rotation.x=.5+Math.sin(clock.elapsedTime*2.6)*.07;
+      playerH.headP.rotation.x=-.4;
+    }else{
+      /* Fuori dall'acqua: se sotto non c'e' appoggio si CADE con la gravita'.
+         Prima la quota inseguiva dolcemente il suolo, quindi buttandosi dal
+         ponte si scendeva come in ascensore invece di precipitare. */
+      if(player.position.y>suolo+.12){
+        NUOTO.vy=(NUOTO.vy||0)-9.81*dt;
+        player.position.y+=NUOTO.vy*dt;
+        if(player.position.y<=suolo){player.position.y=suolo;NUOTO.vy=0;}
+      }else{
+        NUOTO.vy=0;
+        player.position.y+=(suolo-player.position.y)*Math.min(1,dt*14);
+        if(Math.abs(suolo-player.position.y)<.004)player.position.y=suolo;
+      }
+      if(playerH.hips.rotation.x!==0){
+        playerH.hips.rotation.x*=.8;playerH.headP.rotation.x*=.8;
+        if(Math.abs(playerH.hips.rotation.x)<.01){playerH.hips.rotation.x=0;playerH.headP.rotation.x=0;}
+      }
     }
   }
   playerH.pose(walkT, len>.08?1:.08);

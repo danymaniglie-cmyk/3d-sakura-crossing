@@ -38,6 +38,7 @@ Double-clicking the file will not work: `file://` rules block loading
 | `E` | talk to whoever is nearby |
 | `F` | get in / out of the kei car |
 | `M` | coordinate readout |
+| `Space` / `C` | swim up / dive, when you are in the water |
 
 ## What's in there
 
