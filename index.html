@@ -3763,10 +3763,16 @@ function updateSassi(dt){
    alla portata di chi domanda invece del piu' alto. Con la vecchia regola del
    massimo, entrare qua sotto era impossibile.
    ============================================================ */
-const FOGNA={x:3.2, zTombino:12, zFiume:FIUME.z-FIUME.sem+1.5, y:-3.2, semi:1.9};
+/* La quota del pavimento non e' libera: sotto la strada ci deve stare l'INTERA
+   sezione — piedritti piu' volta — altrimenti il condotto sfonda l'asfalto.
+   Con pavimento a -3.2, piedritti 2.6 e volta di raggio 2.15 la galleria era
+   alta 4.75 m dentro 3.2 m di terreno, e un metro e mezzo spuntava in mezzo
+   alla carreggiata. Qui il conto torna: -4.2 + 1.7 + 2.15 = -0.35, sottoterra. */
+const FOGNA={x:3.2, zTombino:12, zFiume:FIUME.z-FIUME.sem+1.5, y:-4.2, semi:1.9,
+             piedritto:1.7};
 
 (function fogna(){
-  const g=new THREE.Group();scene.add(g);
+  const g=new THREE.Group();g.name='fogna';scene.add(g);
   const mat=M({map:blockwall.clone()});mat.map.repeat.set(6,2);
   const MELMA=M({map:rivaTex,color:0x6f7a68});
   const z0=FOGNA.zTombino, z1=FOGNA.zFiume, L=z1-z0, zc=(z0+z1)/2;
@@ -3777,37 +3783,41 @@ const FOGNA={x:3.2, zTombino:12, zFiume:FIUME.z-FIUME.sem+1.5, y:-3.2, semi:1.9}
     opacity:.75}),FOGNA.x,FOGNA.y+.04,zc);rio.layers.enable(1);g.add(rio);
   GROUND.addPlat(FOGNA.x,zc,FOGNA.semi*2-.3,L,FOGNA.y);
 
-  // piedritti e volta a botte
-  [-1,1].forEach(k=>{
-    box(.5,2.6,L,mat,FOGNA.x+k*(FOGNA.semi+.25),FOGNA.y+1.3,zc,g);
-    GROUND.addWall(FOGNA.x+k*(FOGNA.semi+.25),zc,.5,L,FOGNA.y+2.6,FOGNA.y-.5);
-  });
-  const volta=new THREE.Mesh(new THREE.CylinderGeometry(FOGNA.semi+.25,FOGNA.semi+.25,L,16,1,true,0,Math.PI),mat);
-  volta.rotation.z=Math.PI/2;volta.rotation.y=Math.PI/2;
-  volta.position.set(FOGNA.x,FOGNA.y+2.6,zc);volta.material.side=THREE.BackSide;g.add(volta);
+  /* Condotto circolare visto da dentro, non un mezzo cilindro ruotato due
+     volte: con due rotazioni di Eulero la volta non finiva dove credevo e il
+     suo ingombro arrivava sopra l'asfalto. Un tubo intero ha una rotazione
+     sola — asse Y portato su Z — e per una fogna e' anche la forma giusta. */
+  const RAG=FOGNA.semi+.25;
+  const tubo=new THREE.Mesh(new THREE.CylinderGeometry(RAG,RAG,L,18,1,true),mat);
+  tubo.rotation.x=Math.PI/2;
+  tubo.position.set(FOGNA.x,FOGNA.y+RAG,zc);
+  tubo.material.side=THREE.BackSide;g.add(tubo);
+  [-1,1].forEach(k=>
+    GROUND.addWall(FOGNA.x+k*(FOGNA.semi+.35),zc,.4,L,FOGNA.y+RAG*1.4,FOGNA.y-.5));
 
   // lampade di servizio ogni sei metri
   for(let z=z0+4;z<z1;z+=6){
     const l=box(.34,.12,.34,new THREE.MeshBasicMaterial({color:0xffd9a0}),
-      FOGNA.x+FOGNA.semi-.1,FOGNA.y+2.2,z,g);l.castShadow=false;
+      FOGNA.x+FOGNA.semi-.35,FOGNA.y+RAG*1.5,z,g);l.castShadow=false;
     const pl=new THREE.PointLight(0xffc98a,.55,9);
-    pl.position.set(FOGNA.x,FOGNA.y+2.0,z);g.add(pl);
+    pl.position.set(FOGNA.x,FOGNA.y+RAG*1.3,z);g.add(pl);
   }
 
   /* Bocca sul canale: griglia sollevata e imboccatura ad arco nella sponda.
      Si entra nuotando, o cadendoci dentro. */
-  const arcoG=new THREE.Mesh(new THREE.CylinderGeometry(FOGNA.semi,FOGNA.semi,.6,14,1,false,0,Math.PI),mat);
-  arcoG.rotation.z=Math.PI/2;arcoG.rotation.y=Math.PI/2;
-  arcoG.position.set(FOGNA.x,FOGNA.y+2.6,z1);g.add(arcoG);
+  const arcoG=new THREE.Mesh(new THREE.TorusGeometry(RAG,.3,8,20),mat);
+  arcoG.position.set(FOGNA.x,FOGNA.y+RAG,z1);g.add(arcoG);
   for(let i=0;i<6;i++)
-    box(.09,2.2,.09,C(0x5a5f58),FOGNA.x-1.4+i*.56,FOGNA.y+1.1,z1+.35,g);
+    box(.09,RAG*1.7,.09,C(0x5a5f58),FOGNA.x-1.4+i*.56,FOGNA.y+RAG*.85,z1+.35,g);
 
   /* Pozzetto: si risale a gradini. Con un tubo liscio non ci si arrampica,
      perche' il gradino massimo e' mezzo metro — e infatti sono alti .42. */
   const pz=z0;
-  const poz=new THREE.Mesh(new THREE.CylinderGeometry(1.15,1.15,3.4,14,1,true),mat);
-  poz.position.set(FOGNA.x,FOGNA.y+1.7,pz);poz.material.side=THREE.DoubleSide;g.add(poz);
-  for(let i=0;i<8;i++){
+  const ALT=-FOGNA.y+.3;                       // dal pavimento fino alla strada
+  const poz=new THREE.Mesh(new THREE.CylinderGeometry(1.15,1.15,ALT,14,1,true),mat);
+  poz.position.set(FOGNA.x,FOGNA.y+ALT/2,pz);poz.material.side=THREE.DoubleSide;g.add(poz);
+  const nGrad=Math.ceil(ALT/.42);
+  for(let i=0;i<nGrad;i++){
     const a=i*.9, r=.72;
     const sx=FOGNA.x+Math.cos(a)*r, sz=pz+Math.sin(a)*r;
     const y=FOGNA.y+.42+i*.42;
