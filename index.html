@@ -2539,7 +2539,10 @@ const VIA={w:8.4, top:EXPWY.y};
      torna in quota sopra i quartieri di levante fino alla sopraelevata.
      E' lungo a posta: con trecento metri la pendenza sta sotto il cinque per
      cento, cioe' una salita d'autostrada — piana ma che sale. */
-  const P=[[16,38],[16,56],[16,80],[19,102],[34,122],[62,129],[90,114],
+  /* Il raccordo scende sulla carreggiata a sud dell'arco e gira a levante
+     passandogli di fianco: fra l'arco e il ponte sul fiume ci sono due metri
+     scarsi, e attaccando li' la rampa sarebbe nata dentro il portale. */
+  const P=[[3,22],[10,25],[15,31],[16,40],[16,56],[16,80],[19,102],[34,122],[62,129],[90,114],
            [105,86],[109,52],[111,12],[112,-28],[113,-52],[122,-62]];
   const curva=new THREE.CatmullRomCurve3(
     P.map(p=>new THREE.Vector3(p[0],0,p[1])),false,'catmullrom',.35);
@@ -2555,9 +2558,15 @@ const VIA={w:8.4, top:EXPWY.y};
      elegante ma teneva l'impalcato a ventisei centimetri per sessanta metri:
      in mezzo alla carreggiata leggeva come un cordolo, non come un ponte.
      Solo gli ultimi metri si addolciscono, per arrivare in piano sull'altro. */
+  /* L'impalcato e' spesso mezzo metro ed e' centrato sulla quota: partendo da
+     zero il suo asfalto restava 28 cm sopra quello della strada, cioe' un
+     gradino invece di un raccordo. Si parte da -0.25 perche' le due superfici
+     combacino, e si arriva comunque a VIA.top, che e' la quota dell'impalcato
+     esistente. Pendenza costante in mezzo. */
+  const GIU=-.25;
   const quota=s=>{
     const t=Math.max(0,Math.min(1,(s-SALITA)/(LTOT-SALITA-26)));
-    return VIA.top*(t<.86 ? t : .86+(t-.86)*(1-(t-.86)/.28)/.14*.14+ (t-.86)*.5);
+    return GIU+(VIA.top-GIU)*t;
   };
   pt.forEach((p,i)=>p.y=quota(acc[i]));
 
