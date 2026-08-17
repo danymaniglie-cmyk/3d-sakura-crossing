@@ -2555,8 +2555,25 @@ const FIUME_G=(()=>{
   const g=new THREE.Group();scene.add(g);
   const L=FIUME.a-FIUME.da, W=FIUME.sem*2;
 
-  // fondo del canale
-  const fondo=plane(L,W,M({map:rivaTex}),0,FIUME.fondo,FIUME.z);
+  /* Fondale a dune. Un piano perfettamente piatto non e' mai sabbia: la
+     corrente la ammucchia da una parte e la scava dall'altra. La quota viene da
+     una somma di seni incommensurabili piu' un accumulo verso le sponde, dove
+     l'acqua rallenta e deposita. Si sposta la z locale perche' il piano viene
+     poi ruotato: e' l'altezza nel mondo. */
+  const gFondo=new THREE.PlaneGeometry(L,W,140,20);
+  {
+    const pos=gFondo.attributes.position;
+    for(let i=0;i<pos.count;i++){
+      const u=pos.getX(i), v=pos.getY(i);
+      const versoRiva=Math.pow(Math.abs(v)/(W/2),2.2);      // si deposita ai bordi
+      const duna=Math.sin(u*.07)*.34+Math.sin(u*.021+v*.11)*.5
+                +Math.sin(v*.28+u*.013)*.2+Math.sin(u*.005)*.6;
+      pos.setZ(i, duna+versoRiva*1.5);
+    }
+    pos.needsUpdate=true;gFondo.computeVertexNormals();
+  }
+  const fondo=new THREE.Mesh(gFondo,M({map:rivaTex}));
+  fondo.rotation.x=-Math.PI/2;fondo.position.set(0,FIUME.fondo,FIUME.z);
   fondo.receiveShadow=true;g.add(fondo);
   /* Il letto va dichiarato come piano calpestabile. Senza, il terreno tornava
      lo zero di riserva e chi si buttava dal ponte atterrava su un pavimento
@@ -3433,7 +3450,7 @@ const KEY=[
   {t:0.00,sun:0xffcaa0,si:1.15,hs:0xffd9c4,hg:0x6b5a76,hi:.75,fog:0xf3d3b4,sky:0xffd9bc,y:6,  n:'Alba'},
   {t:0.28,sun:0xfdf0e2,si:1.32,hs:0xcfe2f4,hg:0x8e8ea6,hi:.72,fog:0xd2e2f2,sky:0xb8d2ef,y:26,n:'Mattina'},
   {t:0.55,sun:0xfdf1dc,si:1.28,hs:0xd2e2f6,hg:0x8a8896,hi:.70, fog:0xd6e2f0,sky:0xc0d8ee,y:22,n:'Pomeriggio'},
-  {t:0.75,sun:0xffd6ac,si:2.05,hs:0xffd2c8,hg:0x6d6180,hi:.92, fog:0xf6c9a6,sky:0xfff2e0,y:8, n:'Tramonto'},
+  {t:0.75,sun:0xffd6ac,si:1.42,hs:0xffd2c8,hg:0x6d6180,hi:.92, fog:0xf6c9a6,sky:0xfff2e0,y:8, n:'Tramonto'},
   {t:0.88,sun:0xc9a0d0,si:.85, hs:0xa294c8,hg:0x453d5c,hi:.72, fog:0xb094b4,sky:0xb69cc4,y:3, n:'Crepuscolo'},
   {t:1.00,sun:0x8fa0dc,si:.45, hs:0x5a6aa0,hg:0x2c2842,hi:.55, fog:0x55608c,sky:0x6d7aa8,y:2, n:'Notte'}
 ];
@@ -3880,7 +3897,10 @@ const FOGNA={x:3.2, zTombino:12, zFiume:FIUME.z-FIUME.sem+1.5, y:-4.2, semi:1.9,
   const tubo=new THREE.Mesh(new THREE.CylinderGeometry(RAG,RAG,L,18,1,true),mat);
   tubo.rotation.x=Math.PI/2;
   tubo.position.set(FOGNA.x,FOGNA.y+RAG,zc);
-  tubo.material.side=THREE.BackSide;g.add(tubo);
+  /* Materiale PROPRIO del tubo. Era condiviso con gli altri pezzi, e siccome
+     piu' avanti il pozzetto lo metteva a DoubleSide, il condotto finiva visibile
+     anche da fuori: da lontano era un cilindro bianco pieno in mezzo al niente. */
+  tubo.material=mat.clone();tubo.material.side=THREE.BackSide;g.add(tubo);
   [-1,1].forEach(k=>
     GROUND.addWall(FOGNA.x+k*(FOGNA.semi+.35),zc,.4,L,FOGNA.y+RAG*1.4,FOGNA.y-.5));
 
@@ -3904,7 +3924,8 @@ const FOGNA={x:3.2, zTombino:12, zFiume:FIUME.z-FIUME.sem+1.5, y:-4.2, semi:1.9,
   const pz=z0;
   const ALT=-FOGNA.y+.3;                       // dal pavimento fino alla strada
   const poz=new THREE.Mesh(new THREE.CylinderGeometry(1.15,1.15,ALT,14,1,true),mat);
-  poz.position.set(FOGNA.x,FOGNA.y+ALT/2,pz);poz.material.side=THREE.DoubleSide;g.add(poz);
+  poz.position.set(FOGNA.x,FOGNA.y+ALT/2,pz);
+  poz.material=mat.clone();poz.material.side=THREE.DoubleSide;g.add(poz);
   const nGrad=Math.ceil(ALT/.42);
   for(let i=0;i<nGrad;i++){
     const a=i*.9, r=.72;
@@ -3951,18 +3972,20 @@ const FOGNA={x:3.2, zTombino:12, zFiume:FIUME.z-FIUME.sem+1.5, y:-4.2, semi:1.9,
   GROUND.addPlat(FOGNA.x,pz,1.9,1.9,.02);
   /* Pietrisco attorno alla bocca: e' il segno che l'asfalto e' stato aperto e
      richiuso, e toglie al tombino l'aria di essere stato incollato li'. */
-  for(let i=0;i<38;i++){
-    const a=Math.random()*6.283, r=1.15+Math.random()*.75;
-    const s2=.05+Math.random()*.09;
+  /* Pietrisco ammucchiato SOLO dove il coperchio sollevato tocca terra: e' li'
+     che il bordo affonda nell'asfalto e i sassi si accumulano. Sparpagliarli
+     tutt'attorno faceva un alone che sembrava un'ombra sporca. La toppa scura
+     l'ho tolta per lo stesso motivo. */
+  const mucchioX=FOGNA.x+1.75, mucchioZ=pz+.5;
+  for(let i=0;i<22;i++){
+    const a=Math.random()*6.283, r=Math.pow(Math.random(),.6)*.85;
+    const s2=.045+Math.random()*.085;
     const q=new THREE.Mesh(new THREE.DodecahedronGeometry(s2,0),
       C([0x8d8578,0x9c948a,0x7a736a,0xa8a096][i%4]));
-    q.position.set(FOGNA.x+Math.cos(a)*r,.02+s2*.4,pz+Math.sin(a)*r);
+    q.position.set(mucchioX+Math.cos(a)*r,.02+s2*.4,mucchioZ+Math.sin(a)*r);
     q.rotation.set(Math.random()*3,Math.random()*3,Math.random()*3);
     q.castShadow=true;g.add(q);
   }
-  // e una toppa d'asfalto piu' scura, rappezzata
-  const toppa=new THREE.Mesh(new THREE.CircleGeometry(2.1,20),C(0x6e6a72));
-  toppa.rotation.x=-Math.PI/2;toppa.position.set(FOGNA.x,.016,pz);g.add(toppa);
 
   // il coperchio sollevato, appoggiato di taglio contro il cordolo
   const cop=new THREE.Mesh(new THREE.CylinderGeometry(1.0,1.0,.09,24),
@@ -4487,7 +4510,7 @@ const POST=(()=>{
       float l=dot(c,vec3(0.2126,0.7152,0.0722));
       float s=clamp((l-uThr)/max(uKnee,1e-4),0.0,1.0);
       gl_FragColor=vec4(c*s*s,1.0);
-    }`,{tScene:{value:null},uThr:{value:0.75},uKnee:{value:0.7}});
+    }`,{tScene:{value:null},uThr:{value:0.98},uKnee:{value:0.5}});
 
   const blur=mkPass(`
     uniform sampler2D tSrc;uniform vec2 uDir;
@@ -4560,7 +4583,7 @@ const POST=(()=>{
     uTexel:{value:new THREE.Vector2()},
     uNear:{value:camera.near},uFar:{value:camera.far},
     uThick:{value:1.15},uNormalEdge:{value:0.30},uDepthEdge:{value:0.010},
-    uBloom:{value:0.85},uOutline:{value:1.0},uVignette:{value:0.40},
+    uBloom:{value:0.95},uOutline:{value:1.0},uVignette:{value:0.40},
     uExposure:{value:0.88},uSat:{value:1.16},uGrain:{value:1.0},uFade:{value:190.0},
     uInk:{value:new THREE.Color(0x2b2036)},uLift:{value:new THREE.Color(0x2e3a63)}});
 
