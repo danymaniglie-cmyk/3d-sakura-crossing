@@ -2534,21 +2534,23 @@ const VIA={w:8.4, top:EXPWY.y};
         STEEL=C(0x9aa3ab);
 
   // Tracciato in pianta: attacco a terra davanti all'arco, curva larga, rettilineo.
-  /* Attacca sulla mezzeria della via principale, davanti all'arco, e sale
-     sopra la carreggiata: non di fianco, dove finiva schiacciato fra le case e
-     spariva dentro il terreno. Da li' corre in quota sopra la strada, piega a
-     levante e va diritto sulla sopraelevata. */
-  const P=[[0,26],[0,10],[1,-6],[6,-22],[18,-36],[36,-46],[56,-53],[78,-58],[100,-61],[124,-62]];
+  /* Attacca a terra oltre l'arco, scavalca il fiume di fianco al ponte
+     stradale, prosegue a nord finche' non ha preso quota, poi curva largo e
+     torna in quota sopra i quartieri di levante fino alla sopraelevata.
+     E' lungo a posta: con trecento metri la pendenza sta sotto il cinque per
+     cento, cioe' una salita d'autostrada — piana ma che sale. */
+  const P=[[16,38],[16,56],[16,80],[19,102],[34,122],[62,129],[90,114],
+           [105,86],[109,52],[111,12],[112,-28],[113,-52],[122,-62]];
   const curva=new THREE.CatmullRomCurve3(
     P.map(p=>new THREE.Vector3(p[0],0,p[1])),false,'catmullrom',.35);
 
-  const N=190;
+  const N=260;
   const pt=curva.getPoints(N);
   // lunghezze cumulate: servono per distribuire la salita in modo uniforme
   const acc=[0];
   for(let i=1;i<=N;i++)acc.push(acc[i-1]+Math.hypot(pt[i].x-pt[i-1].x,pt[i].z-pt[i-1].z));
   const LTOT=acc[N];
-  const SALITA=10;                 // primi metri ancora a terra, davanti all'arco
+  const SALITA=6;                  // pochi metri in piano, poi si sale
   /* Pendenza costante, non una curva a esse. Il raccordo dolce sembrava
      elegante ma teneva l'impalcato a ventisei centimetri per sessanta metri:
      in mezzo alla carreggiata leggeva come un cordolo, non come un ponte.
@@ -2573,8 +2575,11 @@ const VIA={w:8.4, top:EXPWY.y};
       B.add(new THREE.BoxGeometry(len,.12,.42),STEEL,mx+nx,my+1.30,mz+nz,0,yaw,pend);
     });
     if(i%2===0)B.add(new THREE.BoxGeometry(len*.5,.03,.18),PAINT,mx,my+.33,mz,0,yaw,pend);
-    // pile solo dove la strada e' staccata da terra, e mai dentro un edificio
-    if(i%8===4 && my>2.2 && !GROUND.blocked(mx,mz,2.6)){
+    /* Sopra il fiume si va sempre su pile, anche dove l'impalcato e' basso:
+       col criterio della sola quota ci finiva il rilevato pieno, che in mezzo
+       al canale sarebbe una diga. */
+    const sopraFiume=Math.abs(mz-FIUME.z)<FIUME.sem+2.5;
+    if(i%8===4 && (my>2.2||sopraFiume) && !GROUND.blocked(mx,mz,2.6)){
       const dentro=Math.abs(mz-FIUME.z)<FIUME.sem;
       const base=dentro?FIUME.fondo:0;
       const h=my-base-.35;
@@ -2582,9 +2587,14 @@ const VIA={w:8.4, top:EXPWY.y};
       B.add(new THREE.BoxGeometry(3.4,.7,3.4),CONC,mx,my-.62,mz,0,yaw,0,1,1);
       if(!dentro)GROUND.addWall(mx,mz,2.2,2.2);
     }
-    // muretti di sostegno dove la rampa e' ancora bassa, invece delle pile
-    if(i%4===2 && my>.35 && my<=2.2)
-      B.add(new THREE.BoxGeometry(len*1.1,my,VIA.w-1.4),CONC,mx,my/2,mz,0,yaw,0,len/3,1);
+    /* Rilevato sotto la parte bassa. Prima erano blocchi separati, uno ogni
+       quattro segmenti, ciascuno alto quanto l'impalcato in quel punto: da fuori
+       leggevano come una scalinata. Ora ogni segmento ha il suo, inclinato come
+       la carreggiata e affondato sotto terra, cosi' i pezzi si toccano e il
+       fianco sale liscio come un rilevato autostradale. */
+    if(my>.30 && my<=2.6 && !sopraFiume)
+      B.add(new THREE.BoxGeometry(len*1.02,my+4,VIA.w-1.0),CONC,
+            mx,my/2-2,mz,0,yaw,pend,len/3,1);
   }
   B.flush(scene,true,true);
 })();
