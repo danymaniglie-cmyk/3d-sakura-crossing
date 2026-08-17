@@ -412,6 +412,7 @@ function plane(w,h,mat,x,y,z,rx){
 const GROUNDED=[];   // oggetti da riappoggiare a terra quando le quote esistono
 const GROUND=(()=>{
   const CELL=10;
+  const PORTATA=.55;   // dislivello che si sale come un gradino
   const plats=new Map(), walls=new Map();
   const key=(cx,cz)=>cx+','+cz;
 
@@ -438,14 +439,21 @@ const GROUND=(()=>{
     insert(walls,{x0:cx-w/2,x1:cx+w/2,z0:cz-d/2,z1:cz+d/2});
   }
 
-  /** quota del suolo calpestabile sotto un punto */
-  function heightAt(x,z){
+  /** Quota del suolo calpestabile sotto un punto.
+      yRif e' la quota a cui si trova chi domanda: si restituisce il piano piu'
+      alto che stia alla sua portata, non il piu' alto in assoluto. Serve perche'
+      il mondo ha piu' livelli sovrapposti — il viadotto passa sopra la strada —
+      e col massimo globale chi cammina sotto il ponte veniva agganciato alla
+      corsia di sopra e sparato per aria. Senza yRif il comportamento resta
+      quello di prima, che e' cio' che vogliono gli oggetti da appoggiare. */
+  function heightAt(x,z,yRif){
     const c=cellOf(plats,x,z);
     if(!c)return 0;
+    const tetto=yRif===undefined?Infinity:yRif+PORTATA;
     let y=0;
     for(let i=0;i<c.length;i++){
       const r=c[i];
-      if(x>=r.x0&&x<=r.x1&&z>=r.z0&&z<=r.z1&&r.y>y)y=r.y;
+      if(x>=r.x0&&x<=r.x1&&z>=r.z0&&z<=r.z1&&r.y>y&&r.y<=tetto)y=r.y;
     }
     return y;
   }
@@ -681,14 +689,24 @@ const groundTex=grass.clone();groundTex.repeat.set(110,110);
    il fondo, il prato non puo' essere un piano pieno — va bucato qui, alla
    nascita, altrimenti coprirebbe tutto quello che sta sotto lo zero. */
 const FIUME={z:66, sem:22, y:-1.55, fondo:-3.4, da:-220, a:220};
+/* Affluenti: canali piu' stretti che scendono dai campi a nord e sfociano nel
+   fiume. Corrono lungo z, quindi si descrivono con l'ascissa invece che con la
+   quota. Sono il punto di partenza per allargare la rete d'acqua. */
+const AFFLUENTI=[{x:-70, sem:6.5, da:80, a:186},
+                 {x: 62, sem:5.0, da:80, a:164}];
 const VIA_VARCO=6.2;   // mezza luce del varco sulla sponda, = mezza carreggiata
 (function pratoBucato(){
   const s=new THREE.Shape();
   s.moveTo(-220,-220);s.lineTo(220,-220);s.lineTo(220,220);s.lineTo(-220,220);s.closePath();
-  const h=new THREE.Path();
-  const z0=-(FIUME.z-FIUME.sem), z1=-(FIUME.z+FIUME.sem);   // -z: la Shape viene ruotata
-  h.moveTo(-220,z0);h.lineTo(220,z0);h.lineTo(220,z1);h.lineTo(-220,z1);h.closePath();
-  s.holes.push(h);
+  // un buco per il fiume e uno per ogni affluente: la z va negata perche' la
+  // Shape viene poi ruotata di -90 gradi
+  const buco=(x0,x1,zA,zB)=>{
+    const h=new THREE.Path();
+    h.moveTo(x0,-zA);h.lineTo(x1,-zA);h.lineTo(x1,-zB);h.lineTo(x0,-zB);h.closePath();
+    s.holes.push(h);
+  };
+  buco(-220,220,FIUME.z-FIUME.sem,FIUME.z+FIUME.sem);
+  AFFLUENTI.forEach(a=>buco(a.x-a.sem,a.x+a.sem,a.da,a.a));
   const g=new THREE.ShapeGeometry(s,1);
   // la ShapeGeometry non porta UV utili su questa scala: si ricavano dalle x/z
   const pos=g.attributes.position, uv=[];
@@ -1804,17 +1822,34 @@ for(let i=0;i<26;i++){
     bag.position.set(rnd(-.6,.6),.35,rnd(-.35,.35));bag.scale.y=.85;bag.castShadow=true;g.add(bag);
   }
 })();
-// kei car parcheggiata
-(function(){
-  const g=new THREE.Group();g.position.set(-9.3,0,-19);g.rotation.y=.15;scene.add(g);
+/* La kei car e' guidabile: si sale con F standoci vicino.
+   Le ruote sono tenute da parte perche' vanno fatte girare e sterzare. */
+const AUTO=(function(){
+  const ruote=[], sterzanti=[];
+  /* Era parcheggiata a x=-9.3, cioe' dentro la recinzione: la griglia la dava
+     occupata anche con raggio sessanta centimetri, quindi non si sarebbe mossa
+     di un metro. Qui e' in carreggiata, dove le corsie libere ci sono davvero. */
+  const g=new THREE.Group();g.position.set(-3.4,0,-19);g.rotation.y=0;scene.add(g);
   const b=box(1.75,1.1,3.4,C(0xdfe6ea),0,.95,0,g);ink(b,1.02);
   const cab=box(1.7,.85,1.9,C(0xeef2f4),0,1.75,-.1,g);ink(cab,1.03);
   box(1.62,.55,.06,new THREE.MeshBasicMaterial({color:0x4a5a72}),0,1.8,-1.05,g).castShadow=false;
   [-1,1].forEach(k=>box(.06,.5,1.6,new THREE.MeshBasicMaterial({color:0x4a5a72}),k*.86,1.8,-.05,g).castShadow=false);
-  [[-.82,-1.05],[.82,-1.05],[-.82,1.15],[.82,1.15]].forEach(p=>{
-    const w=cyl(.36,.36,.26,C(0x33303a),p[0],.38,p[1],14,g);w.rotation.z=Math.PI/2;
-    const hub=cyl(.18,.18,.28,C(0xc9ccd2),p[0],.38,p[1],10,g);hub.rotation.z=Math.PI/2;});
-  [-1,1].forEach(k=>box(.4,.22,.08,new THREE.MeshBasicMaterial({color:0xfff0c8}),k*.6,.95,-1.72,g).castShadow=false);
+  [[-.82,-1.05],[.82,-1.05],[-.82,1.15],[.82,1.15]].forEach((p,i)=>{
+    // ogni ruota in un gruppo: il gruppo sterza, la ruota dentro rotola
+    const perno=new THREE.Group();perno.position.set(p[0],.38,p[1]);g.add(perno);
+    const w=cyl(.36,.36,.26,C(0x33303a),0,0,0,14,perno);w.rotation.z=Math.PI/2;
+    const hub=cyl(.18,.18,.28,C(0xc9ccd2),0,0,0,10,perno);hub.rotation.z=Math.PI/2;
+    ruote.push(w);ruote.push(hub);
+    if(i<2)sterzanti.push(perno);        // le anteriori sono le due a z negativa
+  });
+  const fari=[-1,1].map(k=>box(.4,.22,.08,new THREE.MeshBasicMaterial({color:0x6b5f3c}),
+    k*.6,.95,-1.72,g));
+  fari.forEach(f=>f.castShadow=false);
+  // stop posteriori
+  const stop=[-1,1].map(k=>box(.34,.18,.07,new THREE.MeshBasicMaterial({color:0x5a1f22}),
+    k*.62,.95,1.72,g));
+  stop.forEach(f=>f.castShadow=false);
+  return {g,ruote,sterzanti,fari,stop,v:0,sterzo:0,dentro:false};
 })();
 // lanterne di carta appese lungo la strada
 (function(){
@@ -2517,7 +2552,29 @@ const FIUME_G=(()=>{
   /* Il ponte stradale che stava qui e' sparito: la traversata del fiume ora e'
      una campata del viadotto, non una seconda opera. Due ponti a un metro l'uno
      dall'altro erano due carreggiate sovrapposte. */
-  return {g,acqua,schiuma,onda,glint};
+  /* Gli affluenti non hanno il riflesso: ogni THREE.Water e' un rendering
+     completo della scena in piu' a ogni frame, e per due canali larghi dodici
+     metri non vale il prezzo. Usano l'acqua dipinta, che a quella distanza non
+     si distingue, e la stessa tinta del cielo del fiume grande. */
+  const minori=[];
+  AFFLUENTI.forEach(a=>{
+    const L=a.a-a.da, C0=(a.da+a.a)/2, W2=a.sem*2;
+    plane(W2,L,M({map:rivaTex}),a.x,FIUME.fondo+.6,C0);            // fondo
+    const t=acquaTex.clone();t.needsUpdate=true;
+    t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(W2/22,L/22);
+    const mat=new THREE.MeshBasicMaterial({map:t});
+    mat.userData.base=new THREE.Color(1,1,1);
+    const m=plane(W2,L,mat,a.x,FIUME.y-.1,C0);
+    m.layers.enable(1);g.add(m);minori.push({t,mat});
+    [-1,1].forEach(k=>{                                            // sponde
+      const bx=a.x+k*(a.sem+.45);
+      box(.9,2.6,L,M({map:cementoTex}),bx,FIUME.fondo+1.9,C0,g);
+      box(1.5,.34,L,M({map:pave}),a.x+k*(a.sem+1.2),.15,C0,g);
+      GROUND.addPlat(a.x+k*(a.sem+1.2),C0,1.5,L,.32);
+      GROUND.addWall(a.x+k*(a.sem+.45),C0,.9,L);
+    });
+  });
+  return {g,acqua,schiuma,onda,glint,minori};
 })();
 
 /* ============================================================
@@ -2667,13 +2724,12 @@ const PONTE_M=(function rampaEViadotto(){
 
   /* Il ponte si calpesta. Senza piani registrati ci si sprofonda dentro, ed e'
      il difetto che si sentiva camminandoci sopra.
-     Si registra solo il tratto basso: heightAt restituisce la quota MASSIMA fra
-     quelle sovrapposte, quindi registrare anche la parte alta aggancerebbe alla
-     corsia di sopra chi passa sotto, sparandolo per aria. Piu' su non ci si
-     arriva comunque, perche' il gradino massimo e' mezzo metro. */
+     Si registra per intero, dal principio all'innesto sulla sopraelevata: e'
+     heightAt che ora sceglie il piano alla portata di chi domanda, invece del
+     piu' alto in assoluto, quindi il viadotto non aggancia piu' chi ci passa
+     sotto. Fermandosi a una quota qualunque, li' si cadeva di sotto. */
   for(let i=1;i<st.length;i++){
     const a=st[i-1], c=st[i];
-    if(c.y>3.4)continue;
     const L=Math.hypot(c.x-a.x,c.z-a.z)*1.7;
     GROUND.addPlat((a.x+c.x)/2,(a.z+c.z)/2,VIA.w*.86,L,c.y+.34);
     // parapetti solidi solo dove si e' gia' staccati da terra, o murerebbero
@@ -2709,6 +2765,7 @@ function updateFiume(t){
   // Water anima il proprio riflesso da questo uniform: e' il suo orologio
   FIUME_G.acqua.material.uniforms.time.value=t*.62;
   FIUME_G.schiuma.forEach((s,i)=>{s.offset.x=-t*.014-i*.5;});
+  FIUME_G.minori.forEach((m,i)=>{m.t.offset.y=-t*.02-i*.3;m.t.offset.x=Math.sin(t*.2)*.02;});
   updateTraghetto(_dtFiume,t);
 
   /* L'onda: somma di tre seni con lunghezze e versi diversi. Una sola sinusoide
@@ -3159,6 +3216,11 @@ function applyDay(){
        tinta puramente col cielo diventava uno specchio rosa in cui il fiume
        spariva. Un fiume riflette, ma ha anche un colore suo. */
     lerpSRGB(u.waterColor.value,a.fog,b.fog,k).lerp(_acquaBlu,.80);
+    /* Gli affluenti non hanno riflesso che li schiarisca, quindi non possono
+       usare il colore del fiume grande: verrebbero neri. Partono dal blu
+       dell'acqua, prendono un soffio di cielo e restano chiari. */
+    FIUME_G.minori.forEach(m=>m.mat.color.copy(_acquaBlu)
+      .lerp(lerpSRGB(new THREE.Color(),a.sky,b.sky,k),.34).multiplyScalar(1.25));
     lerpSRGB(u.sunColor.value,a.sun,b.sun,k);
     u.sunDirection.value.set(Math.cos(sunH*.0175),Math.sin(sunH*.0175),.2).normalize();
   }
@@ -3404,8 +3466,82 @@ function updatePonteMobile(dt){
   });
 }
 
+/* Guida.
+   Modello semplice ma coerente: l'auto ha una velocita' lungo il proprio asse e
+   uno sterzo che la fa ruotare tanto piu' quanto piu' va veloce — da ferma il
+   volante non gira la macchina, come nella realta'. La marcia indietro ha meno
+   spinta. La collisione usa la stessa griglia del personaggio, risolta prima su
+   X e poi su Z, cosi' si striscia lungo un muro invece di incollarcisi.
+   Si sale e si scende con F stando vicino. */
+const GUIDA={su:false, kmh:0};
+addEventListener('keydown',e=>{
+  if(e.code!=='KeyF')return;
+  const p=player.position, a=AUTO.g.position;
+  if(!GUIDA.su){
+    if(Math.hypot(p.x-a.x,p.z-a.z)>3.6){toast('avvicinati all\'auto');return;}
+    GUIDA.su=true;player.visible=false;toast('F per scendere · WASD per guidare');
+  }else{
+    GUIDA.su=false;AUTO.v=0;
+    // si scende di fianco, non dentro la carrozzeria
+    const lat=new THREE.Vector3(Math.cos(AUTO.g.rotation.y),0,-Math.sin(AUTO.g.rotation.y));
+    player.position.set(a.x+lat.x*2.2,a.y,a.z+lat.z*2.2);
+    player.visible=true;toast('sei sceso');
+  }
+});
+
+function updateAuto(dt){
+  const A=AUTO;
+  if(GUIDA.su){
+    const gas=(keys['KeyW']?1:0)-(keys['KeyS']?1:0);
+    const vol=(keys['KeyA']?1:0)-(keys['KeyD']?1:0);
+    const max=keys['ShiftLeft']||keys['ShiftRight']?17:11;
+    A.v+=gas*(gas>0?7.5:5.5)*dt;
+    A.v*=Math.pow(gas?.995:.28,dt*3);              // attrito, forte se non si accelera
+    A.v=Math.max(-max*.45,Math.min(max,A.v));
+    /* Sterzo vero: omega = v * tan(angolo) / passo. Con la proporzionalita'
+       diretta che avevo messo, a quaranta all'ora l'auto girava di duecento
+       gradi in due secondi — una trottola. E l'angolo massimo si riduce con la
+       velocita', come un servosterzo: a tutta velocita' il volante non si
+       inchioda a fondo corsa. */
+    const PASSO=2.2, LOCK=.52;
+    const lock=LOCK*(1-.68*Math.min(1,Math.abs(A.v)/max));
+    A.sterzo+=(vol*lock-A.sterzo)*Math.min(1,dt*7);
+    A.g.rotation.y+=A.v*Math.tan(A.sterzo)/PASSO*dt;
+  }else{
+    A.v*=Math.pow(.15,dt);
+    A.sterzo*=Math.pow(.2,dt);
+  }
+  if(Math.abs(A.v)>1e-3){
+    const dir=new THREE.Vector3(Math.sin(A.g.rotation.y),0,Math.cos(A.g.rotation.y));
+    const px=A.g.position.x, pz=A.g.position.z, py=A.g.position.y;
+    const nx=px+dir.x*A.v*dt, nz=pz+dir.z*A.v*dt;
+    let mx=px, mz=pz;
+    if(!GROUND.blocked(nx,pz,1.1)&&GROUND.heightAt(nx,pz,py)-py<=.55)mx=nx;
+    if(!GROUND.blocked(mx,nz,1.1)&&GROUND.heightAt(mx,nz,py)-py<=.55)mz=nz;
+    if(mx===px&&mz===pz)A.v*=.2;                   // ha sbattuto
+    A.g.position.x=mx;A.g.position.z=mz;
+    const gy=GROUND.heightAt(mx,mz,py);
+    A.g.position.y+=(gy-A.g.position.y)*Math.min(1,dt*10);
+    // le ruote rotolano di quanto ha percorso: giro = 2*pi*r
+    const giro=A.v*dt/.36;
+    A.ruote.forEach(w=>w.rotation.x+=giro);
+  }
+  A.sterzanti.forEach(p=>{p.rotation.y=A.sterzo;});
+  GUIDA.kmh=Math.abs(A.v)*3.6;
+  // fari e stop accesi solo quando serve
+  setSRGB(A.fari[0].material.color, GUIDA.su?0xfff0c8:0x6b5f3c);
+  setSRGB(A.fari[1].material.color, GUIDA.su?0xfff0c8:0x6b5f3c);
+  const frena=GUIDA.su&&keys['KeyS'];
+  A.stop.forEach(m=>setSRGB(m.material.color, frena?0xff3b46:0x5a1f22));
+  if(GUIDA.su){
+    // il personaggio viaggia con l'auto: la camera lo segue gia', quindi segue lei
+    player.position.set(A.g.position.x,A.g.position.y,A.g.position.z);
+  }
+}
+
 function updateGame(dt){
   updatePonteMobile(dt);
+  updateAuto(dt);
   G.time+=dt*G.speedDay;
   if(G.time>=1){G.time=0;G.day++;toast('Giorno '+G.day);}
   applyDay();
@@ -3808,6 +3944,7 @@ function tick(){
     const fwd=-nz;                      // W da' iz=-1, che e' "avanti"
     const dx=(-nx*c+fwd*s)*sp*dt;
     const dz=( nx*s+fwd*c)*sp*dt;
+    if(GUIDA.su){walkT*=.85;}else{
     const px=player.position.x, pz=player.position.z, py=player.position.y;
 
     // il passaggio a livello si chiude davvero quando arriva il treno
@@ -3820,17 +3957,18 @@ function tick(){
 
     // assi separati: contro un muro si scivola invece di incastrarsi
     let mx=px, mz=pz;
-    if(!GROUND.blocked(tx,pz,PLAYER_R)&&GROUND.heightAt(tx,pz)-py<=STEP_UP)mx=tx;
-    if(!GROUND.blocked(mx,tz,PLAYER_R)&&GROUND.heightAt(mx,tz)-py<=STEP_UP)mz=tz;
+    if(!GROUND.blocked(tx,pz,PLAYER_R)&&GROUND.heightAt(tx,pz,py)-py<=STEP_UP)mx=tx;
+    if(!GROUND.blocked(mx,tz,PLAYER_R)&&GROUND.heightAt(mx,tz,py)-py<=STEP_UP)mz=tz;
     player.position.x=mx;player.position.z=mz;
 
     walkT+=dt*(running?13:8.5);
     player.rotation.y=Math.atan2(dx,dz);
+    }
   }else walkT*=.85;
 
   // il personaggio segue la quota del suolo: sale sui cordoli, non li attraversa
-  {
-    const gy=GROUND.heightAt(player.position.x,player.position.z);
+  if(!GUIDA.su){
+    const gy=GROUND.heightAt(player.position.x,player.position.z,player.position.y);
     player.position.y+=(gy-player.position.y)*Math.min(1,dt*14);
     if(Math.abs(gy-player.position.y)<.004)player.position.y=gy;
   }

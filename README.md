@@ -36,6 +36,8 @@ Double-clicking the file will not work: `file://` rules block loading
 | mouse drag | look |
 | `V` / `F5` | first / third person |
 | `E` | talk to whoever is nearby |
+| `F` | get in / out of the kei car |
+| `M` | coordinate readout |
 
 ## What's in there
 
@@ -57,6 +59,11 @@ Double-clicking the file will not work: `file://` rules block loading
   hanging lanterns, a cat on a wall, birds, fireflies, falling petals
 - Six residents who walk about, stop when the train comes, look at you as you
   pass, and can be talked to
+- A river across the neighbourhood with a **bascule bridge**: barriers drop,
+  signals flash, the deck lifts, a ferry passes, it closes again — and debris
+  falls into the water under real gravity
+- Two tributary canals feeding the river from the fields
+- A drivable kei car
 - A day/night cycle
 
 ## How it works
