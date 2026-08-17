@@ -453,12 +453,16 @@ const GROUND=(()=>{
     const c=cellOf(plats,x,z);
     if(!c)return 0;
     const tetto=yRif===undefined?Infinity:yRif+PORTATA;
-    let y=0;
+    /* Si parte da -Infinito, non da zero. Partendo da zero nessun piano sotto
+       il livello del suolo poteva mai essere restituito, e il condotto della
+       fogna a -3.2 semplicemente non esisteva per chi ci camminava dentro.
+       Se non si trova nulla si torna a zero, che e' il prato. */
+    let y=-Infinity;
     for(let i=0;i<c.length;i++){
       const r=c[i];
       if(x>=r.x0&&x<=r.x1&&z>=r.z0&&z<=r.z1&&r.y>y&&r.y<=tetto)y=r.y;
     }
-    return y;
+    return y===-Infinity?0:y;
   }
 
   /** true se un cilindro di raggio r centrato qui tocca un muro */
@@ -1536,10 +1540,18 @@ const houses=[
   [13,-18,-Math.PI/2,6,5,5],[13.4,-9,-Math.PI/2,5.5,5,5.6],[13,2,-Math.PI/2,6,5,4.6],
   [13,11,-Math.PI/2,5.5,5,5.4],[13.2,20,-Math.PI/2,6,5,4.8]
 ];
+/* Le due case attraversate dal treno vanno CENTRATE sul binario, non lasciate
+   dove capitavano nell'elenco: stavano a z=1 e z=2 mentre la linea corre a z=0,
+   quindi il convoglio entrava nel portale storto di uno e due metri.
+   La luce dev'essere piu' larga delle traversine (5.2 m), o le estremita'
+   sparirebbero dentro le spalle del portale. */
+const BINARIO_Z=0, LUCE_TRENO=6.4;
 houses.forEach(h=>{
-  // le due che stanno sul corridoio dei binari prendono la galleria alla base
   const attraversata = Math.abs(h[1]) - h[3]/2 < 1.6 && Math.abs(h[1]) + h[3]/2 > -1.6;
-  (attraversata ? casaGalleria : house)(...h);
+  if(attraversata){
+    const c=h.slice(); c[1]=BINARIO_Z;
+    casaGalleria(c[0],c[1],c[2],c[3],c[4],c[5],{luce:LUCE_TRENO,imposta:3.2});
+  } else house(...h);
 });
 // Fondale solo a nord: verso sud la via prosegue fino alla sopraelevata,
 // altrimenti il sottopasso resterebbe dietro un muro di case e non lo si
@@ -1841,32 +1853,99 @@ for(let i=0;i<26;i++){
   }
 })();
 /* La kei car e' guidabile: si sale con F standoci vicino.
-   Le ruote sono tenute da parte perche' vanno fatte girare e sterzare. */
+   La carrozzeria non e' piu' fatta di scatole. Si disegna il PROFILO di fianco
+   — cofano, parabrezza, tetto, lunotto, coda — e lo si estrude per la larghezza
+   con lo smusso attivo: cosi' ogni spigolo nasce raccordato e la fiancata ha la
+   sua linea, invece di essere un parallelepipedo con un altro sopra. */
 const AUTO=(function(){
   const ruote=[], sterzanti=[];
-  /* Era parcheggiata a x=-9.3, cioe' dentro la recinzione: la griglia la dava
-     occupata anche con raggio sessanta centimetri, quindi non si sarebbe mossa
-     di un metro. Qui e' in carreggiata, dove le corsie libere ci sono davvero. */
   const g=new THREE.Group();g.position.set(-3.4,0,-19);g.rotation.y=0;scene.add(g);
-  const b=box(1.75,1.1,3.4,C(0xdfe6ea),0,.95,0,g);ink(b,1.02);
-  const cab=box(1.7,.85,1.9,C(0xeef2f4),0,1.75,-.1,g);ink(cab,1.03);
-  box(1.62,.55,.06,new THREE.MeshBasicMaterial({color:0x4a5a72}),0,1.8,-1.05,g).castShadow=false;
-  [-1,1].forEach(k=>box(.06,.5,1.6,new THREE.MeshBasicMaterial({color:0x4a5a72}),k*.86,1.8,-.05,g).castShadow=false);
-  [[-.82,-1.05],[.82,-1.05],[-.82,1.15],[.82,1.15]].forEach((p,i)=>{
-    // ogni ruota in un gruppo: il gruppo sterza, la ruota dentro rotola
-    const perno=new THREE.Group();perno.position.set(p[0],.38,p[1]);g.add(perno);
-    const w=cyl(.36,.36,.26,C(0x33303a),0,0,0,14,perno);w.rotation.z=Math.PI/2;
-    const hub=cyl(.18,.18,.28,C(0xc9ccd2),0,0,0,10,perno);hub.rotation.z=Math.PI/2;
-    ruote.push(w);ruote.push(hub);
-    if(i<2)sterzanti.push(perno);        // le anteriori sono le due a z negativa
+
+  const LUNG=3.35, LARG=1.48, SMUSSO=.075;
+  const CARR=C(0xdfe6ea);   // lamiera: tinta piena, la texture di cemento
+                            // e' definita piu' avanti nel file e qui non esiste
+  const VETRO=new THREE.MeshBasicMaterial({color:0x3f556e});
+  const NERO=C(0x2f2c36), CROMO=C(0xc9ccd2);
+
+  function profilo(){
+    const p=new THREE.Shape();
+    // u = lunghezza (muso a sinistra), v = altezza
+    p.moveTo(-1.62,.30);
+    p.lineTo(-1.66,.62);
+    p.quadraticCurveTo(-1.64,.86,-1.44,.92);   // spigolo del cofano
+    p.lineTo(-1.05,.98);
+    p.quadraticCurveTo(-.86,1.00,-.72,1.24);   // attacco del parabrezza
+    p.lineTo(-.46,1.72);
+    p.quadraticCurveTo(-.38,1.86,-.18,1.88);   // padiglione
+    p.lineTo(.86,1.88);
+    p.quadraticCurveTo(1.06,1.86,1.14,1.70);   // lunotto
+    p.lineTo(1.34,1.20);
+    p.quadraticCurveTo(1.48,1.02,1.56,.92);
+    p.lineTo(1.62,.56);
+    p.lineTo(1.60,.30);
+    p.closePath();
+    return p;
+  }
+  const geo=new THREE.ExtrudeGeometry(profilo(),{
+    depth:LARG-SMUSSO*2, bevelEnabled:true, bevelSegments:3,
+    bevelSize:SMUSSO, bevelThickness:SMUSSO, curveSegments:6});
+  geo.translate(0,0,-(LARG-SMUSSO*2)/2);
+  const corpo=new THREE.Mesh(geo,CARR);
+  corpo.rotation.y=Math.PI/2;corpo.castShadow=true;corpo.receiveShadow=true;g.add(corpo);
+
+  // vetri: pannelli appena fuori dalla fiancata, seguono il taglio del padiglione
+  [-1,1].forEach(k=>{
+    const x=k*(LARG/2+.015);
+    const v1=box(.02,.52,.92,VETRO,x,1.46,-.28,g);v1.castShadow=false;   // porta
+    const v2=box(.02,.46,.70,VETRO,x,1.44,.62,g);v2.castShadow=false;    // posteriore
+    box(.03,.05,1.74,CROMO,x,1.16,.16,g);                                 // profilo cromato
   });
-  const fari=[-1,1].map(k=>box(.4,.22,.08,new THREE.MeshBasicMaterial({color:0x6b5f3c}),
-    k*.6,.95,-1.72,g));
-  fari.forEach(f=>f.castShadow=false);
-  // stop posteriori
-  const stop=[-1,1].map(k=>box(.34,.18,.07,new THREE.MeshBasicMaterial({color:0x5a1f22}),
-    k*.62,.95,1.72,g));
-  stop.forEach(f=>f.castShadow=false);
+  const par=box(1.28,.60,.05,VETRO,0,1.44,-1.02,g);par.rotation.x=-.55;par.castShadow=false;
+  const lun=box(1.22,.48,.05,VETRO,0,1.50,1.02,g);lun.rotation.x=.62;lun.castShadow=false;
+
+  // paraurti, passaruota e specchietti
+  [-1,1].forEach(k=>{
+    box(LARG+.06,.26,.5,NERO,0,.42,k*1.52,g);
+    const sp=box(.16,.12,.1,CARR,k*0,1.42,-.86,g);
+  });
+  [-1,1].forEach(k=>{
+    const br=cyl(.055,.055,.22,NERO,k*(LARG/2+.02),1.44,-.80,6,g);br.rotation.z=Math.PI/2;
+    box(.14,.16,.09,CARR,k*(LARG/2+.15),1.46,-.80,g);
+  });
+
+  /* Ruote: pneumatico a toro e cerchio a razze, non un cilindro nero.
+     Ogni ruota sta in un gruppo che sterza; dentro, la ruota rotola. */
+  [[-.62,-1.02],[.62,-1.02],[-.62,1.06],[.62,1.06]].forEach((q,i)=>{
+    const perno=new THREE.Group();perno.position.set(q[0],.36,q[1]);g.add(perno);
+    const gomma=new THREE.Mesh(new THREE.TorusGeometry(.27,.1,8,16),NERO);
+    gomma.rotation.y=Math.PI/2;gomma.castShadow=true;perno.add(gomma);
+    const cerchio=cyl(.19,.19,.17,CROMO,0,0,0,12,perno);cerchio.rotation.z=Math.PI/2;
+    for(let r=0;r<5;r++){                       // razze
+      const raz=box(.15,.05,.04,CROMO,0,0,0,perno);
+      raz.rotation.x=r*Math.PI*2/5;raz.position.set(0,Math.sin(r*1.257)*.11,Math.cos(r*1.257)*.11);
+    }
+    // passaruota che segue la gomma
+    const arco=new THREE.Mesh(new THREE.TorusGeometry(.36,.055,6,12,Math.PI),CARR);
+    arco.rotation.y=Math.PI/2;arco.position.set(q[0]*1.02,.36,q[1]);g.add(arco);
+    ruote.push(gomma);ruote.push(cerchio);
+    if(i<2)sterzanti.push(perno);
+  });
+
+  // fari e stop, tondi
+  const fari=[-1,1].map(k=>{
+    const f=new THREE.Mesh(new THREE.CircleGeometry(.17,14),
+      new THREE.MeshBasicMaterial({color:0x6b5f3c}));
+    f.position.set(k*.5,.92,-1.62);f.rotation.y=Math.PI;f.castShadow=false;g.add(f);
+    const anello=new THREE.Mesh(new THREE.TorusGeometry(.18,.03,5,14),CROMO);
+    anello.position.set(k*.5,.92,-1.61);g.add(anello);
+    return f;
+  });
+  const stop=[-1,1].map(k=>{
+    const t=box(.3,.16,.05,new THREE.MeshBasicMaterial({color:0x5a1f22}),k*.52,.95,1.62,g);
+    t.castShadow=false;return t;
+  });
+  // targa
+  const tg=box(.46,.15,.03,C(0xf2efe6),0,.62,1.63,g);
   return {g,ruote,sterzanti,fari,stop,v:0,sterzo:0,dentro:false};
 })();
 // lanterne di carta appese lungo la strada
@@ -2348,6 +2427,14 @@ const WIDEN=0;                       // il quartiere storico resta com'era:
 (function solidify(){
   const SW=8+WIDEN;                    // asse dei marciapiedi della via principale
 
+  /* La carreggiata va registrata come piano a quota zero. Non serviva finche'
+     il mondo stava tutto sopra il suolo — mancando, heightAt tornava zero per
+     difetto. Ora che esistono piani sotto lo zero, senza questo chi cammina in
+     strada sopra la fogna troverebbe come unico piano il condotto e ci
+     sprofonderebbe dentro attraverso l'asfalto. */
+  [[-220,RIVA_S],[RIVA_N,220]].forEach(([z0,z1])=>
+    GROUND.addPlat(0,(z0+z1)/2,13,z1-z0,.012));
+
   // marciapiedi rialzati lungo tutta l'arteria
   [-1,1].forEach(k=>{
     GROUND.addPlat(k*SW,0,3.2,440,.36);
@@ -2418,10 +2505,24 @@ acquaTex.wrapS=acquaTex.wrapT=THREE.RepeatWrapping;
 
 /* ghiaia del fondo, che si intravede sotto l'acqua */
 const rivaTex=CT(256,256,(x,w,h)=>{
-  x.fillStyle='#9a8f78';x.fillRect(0,0,w,h);
-  noise(x,w,h,900,'#867c66',1,4);
-  noise(x,w,h,260,'#b3a88f',1,5);
-  for(let i=0;i<70;i++){
+  x.fillStyle='#a89a80';x.fillRect(0,0,w,h);
+  /* Increspature: il fondo sabbioso di un fiume non e' rumore uniforme, e'
+     fatto di onde parallele scavate dalla corrente. Sono queste a farlo
+     leggere come sabbia invece che come ghiaia sporca. */
+  for(let i=0;i<26;i++){
+    const y0=i*(h/26)+Math.random()*3;
+    x.strokeStyle='rgba(126,116,96,.45)';x.lineWidth=2.5+Math.random()*2;
+    x.beginPath();
+    for(let u=0;u<=w;u+=8)x.lineTo(u,y0+Math.sin(u*.055+i)*3.2+Math.sin(u*.14)*1.4);
+    x.stroke();
+    x.strokeStyle='rgba(206,193,166,.4)';x.lineWidth=1.6;
+    x.beginPath();
+    for(let u=0;u<=w;u+=8)x.lineTo(u,y0-2.4+Math.sin(u*.055+i)*3.2+Math.sin(u*.14)*1.4);
+    x.stroke();
+  }
+  noise(x,w,h,700,'#8d8270',1,3);
+  noise(x,w,h,300,'#c4b79a',1,4);
+  for(let i=0;i<44;i++){                       // qualche sasso affiorante
     x.fillStyle=['#7d7466','#8b8375','#6f675c'][i%3];
     x.beginPath();x.ellipse(Math.random()*w,Math.random()*h,2+Math.random()*4,
       2+Math.random()*3,Math.random()*3,0,7);x.fill();
@@ -2773,11 +2874,14 @@ const PONTE_M=(function rampaEViadotto(){
     /* Parapetti: fermano anche di fianco, e vanno messi appena il ponte si
        stacca da terra — passandoci attraverso si finiva sotto l'impalcato, da
        dove non si risale piu' perche' il gradino massimo e' mezzo metro. */
-    if(c.y>.45)[-1,1].forEach(k=>{
-      // il parapetto sta FUORI dalla carreggiata, ed e' sottile: gonfiandolo
-      // sui tratti diagonali finiva a coprire la corsia
+    /* Parapetti su TUTTA la lunghezza, non solo dove il ponte e' alto: sopra il
+       fiume l'impalcato sta a mezzo metro, e li' col vecchio criterio non c'era
+       niente — si usciva di strada e si finiva in acqua.
+       base e cima li legano alla quota della carreggiata, cosi' fermano chi ci
+       cammina o ci guida sopra e non murano chi passa sotto. */
+    if(i>4)[-1,1].forEach(k=>{
       const px=c.x+k*c.nx*(VIA.w/2+.45), pz=c.z+k*c.nz*(VIA.w/2+.45);
-      GROUND.addWall(px,pz,Math.max(.5,dx*1.2),Math.max(.5,dz*1.2));
+      GROUND.addWall(px,pz,Math.max(.9,dx*1.3),Math.max(.9,dz*1.3),c.y+3.2,c.y-.6);
     });
   }
 
@@ -2819,6 +2923,7 @@ function updateFiume(t){
   FIUME_G.minori.forEach((m,i)=>{m.t.offset.y=-t*.02-i*.3;m.t.offset.x=Math.sin(t*.2)*.02;});
   updateTraghetto(_dtFiume,t);
   updateBarchette(_dtFiume,t);
+  updatePesci(t);
 
   /* L'onda: somma di tre seni con lunghezze e versi diversi. Una sola sinusoide
      legge come una lamiera ondulata che scorre; ne bastano tre incommensurabili
@@ -3482,7 +3587,10 @@ function traghetto(col,nome){
 function barchetta(tipo,col){
   const g=new THREE.Group();
   const L=tipo==='chiatta'?11:5.2, B=tipo==='chiatta'?3.4:1.7;
-  const SC=M({map:wood,color:col});
+  /* Lo scafo e' mezza sfera aperta di sopra: con le facce a vista da un lato
+     solo, guardandolo dall'alto si vedeva attraverso e il legno spariva.
+     DoubleSide lo chiude da entrambe le parti. */
+  const SC=M({map:wood,color:col});SC.side=THREE.DoubleSide;
   const scafo=new THREE.Mesh(new THREE.SphereGeometry(1,14,8,0,6.284,Math.PI/2,Math.PI/2),SC);
   scafo.scale.set(B/2,tipo==='chiatta'?.72:.55,L/2);scafo.castShadow=true;g.add(scafo);
   const orlo=new THREE.Mesh(new THREE.TorusGeometry(1,.05,6,20),SC);
@@ -3646,6 +3754,151 @@ function updateSassi(dt){
   });
 }
 
+/* ============================================================
+   LA FOGNA
+   Un condotto che parte dal fondale del canale, corre sotto la via principale
+   e risale in un pozzetto fino a un tombino, da cui si sbuca in strada.
+   Funziona solo grazie al terreno a livelli: il pavimento del condotto sta a
+   -3.2 e la strada a 0 sopra la stessa verticale, e heightAt sceglie il piano
+   alla portata di chi domanda invece del piu' alto. Con la vecchia regola del
+   massimo, entrare qua sotto era impossibile.
+   ============================================================ */
+const FOGNA={x:3.2, zTombino:12, zFiume:FIUME.z-FIUME.sem+1.5, y:-3.2, semi:1.9};
+
+(function fogna(){
+  const g=new THREE.Group();scene.add(g);
+  const mat=M({map:blockwall.clone()});mat.map.repeat.set(6,2);
+  const MELMA=M({map:rivaTex,color:0x6f7a68});
+  const z0=FOGNA.zTombino, z1=FOGNA.zFiume, L=z1-z0, zc=(z0+z1)/2;
+
+  // pavimento con la cunetta centrale, e un velo d'acqua ferma
+  box(FOGNA.semi*2,.3,L,MELMA,FOGNA.x,FOGNA.y-.15,zc,g);
+  const rio=plane(1.5,L,new THREE.MeshBasicMaterial({color:0x4a6f6a,transparent:true,
+    opacity:.75}),FOGNA.x,FOGNA.y+.04,zc);rio.layers.enable(1);g.add(rio);
+  GROUND.addPlat(FOGNA.x,zc,FOGNA.semi*2-.3,L,FOGNA.y);
+
+  // piedritti e volta a botte
+  [-1,1].forEach(k=>{
+    box(.5,2.6,L,mat,FOGNA.x+k*(FOGNA.semi+.25),FOGNA.y+1.3,zc,g);
+    GROUND.addWall(FOGNA.x+k*(FOGNA.semi+.25),zc,.5,L,FOGNA.y+2.6,FOGNA.y-.5);
+  });
+  const volta=new THREE.Mesh(new THREE.CylinderGeometry(FOGNA.semi+.25,FOGNA.semi+.25,L,16,1,true,0,Math.PI),mat);
+  volta.rotation.z=Math.PI/2;volta.rotation.y=Math.PI/2;
+  volta.position.set(FOGNA.x,FOGNA.y+2.6,zc);volta.material.side=THREE.BackSide;g.add(volta);
+
+  // lampade di servizio ogni sei metri
+  for(let z=z0+4;z<z1;z+=6){
+    const l=box(.34,.12,.34,new THREE.MeshBasicMaterial({color:0xffd9a0}),
+      FOGNA.x+FOGNA.semi-.1,FOGNA.y+2.2,z,g);l.castShadow=false;
+    const pl=new THREE.PointLight(0xffc98a,.55,9);
+    pl.position.set(FOGNA.x,FOGNA.y+2.0,z);g.add(pl);
+  }
+
+  /* Bocca sul canale: griglia sollevata e imboccatura ad arco nella sponda.
+     Si entra nuotando, o cadendoci dentro. */
+  const arcoG=new THREE.Mesh(new THREE.CylinderGeometry(FOGNA.semi,FOGNA.semi,.6,14,1,false,0,Math.PI),mat);
+  arcoG.rotation.z=Math.PI/2;arcoG.rotation.y=Math.PI/2;
+  arcoG.position.set(FOGNA.x,FOGNA.y+2.6,z1);g.add(arcoG);
+  for(let i=0;i<6;i++)
+    box(.09,2.2,.09,C(0x5a5f58),FOGNA.x-1.4+i*.56,FOGNA.y+1.1,z1+.35,g);
+
+  /* Pozzetto: si risale a gradini. Con un tubo liscio non ci si arrampica,
+     perche' il gradino massimo e' mezzo metro — e infatti sono alti .42. */
+  const pz=z0;
+  const poz=new THREE.Mesh(new THREE.CylinderGeometry(1.15,1.15,3.4,14,1,true),mat);
+  poz.position.set(FOGNA.x,FOGNA.y+1.7,pz);poz.material.side=THREE.DoubleSide;g.add(poz);
+  for(let i=0;i<8;i++){
+    const a=i*.9, r=.72;
+    const sx=FOGNA.x+Math.cos(a)*r, sz=pz+Math.sin(a)*r;
+    const y=FOGNA.y+.42+i*.42;
+    box(.8,.14,.8,C(0x8f8a84),sx,y,sz,g);
+    GROUND.addPlat(sx,sz,.8,.8,y+.07);
+  }
+  // bocca del tombino a livello strada, aperta
+  const anello=new THREE.Mesh(new THREE.TorusGeometry(1.0,.14,8,18),C(0x6e6a66));
+  anello.rotation.x=Math.PI/2;anello.position.set(FOGNA.x,.06,pz);g.add(anello);
+  GROUND.addPlat(FOGNA.x,pz,1.6,1.6,.02);
+  // il coperchio sta appoggiato di fianco
+  const cop=new THREE.Mesh(new THREE.CylinderGeometry(.98,.98,.1,18),C(0x7d7684));
+  cop.position.set(FOGNA.x+1.9,.36,pz+.4);cop.rotation.z=1.15;cop.castShadow=true;g.add(cop);
+})();
+
+/* Pesci./* Pesci.
+   Nuotano nel canale a profondita' diverse, con la coda che batte. Il corpo e'
+   un ellissoide e la pinna un cono appiattito: da vicino bastano, e sono
+   trecento triangoli in tutto invece di modelli veri.
+   Seguono un'ellisse ciascuno, cosi' non serve scriverne le rotte a mano. */
+const PESCI=(()=>{
+  const l=[];
+  const col=[0xd8a04a,0xc9553c,0x8fa8c0,0xdcc978,0x7f9a72];
+  for(let i=0;i<16;i++){
+    const g=new THREE.Group();
+    const c=C(col[i%col.length]);
+    const corpo=new THREE.Mesh(new THREE.SphereGeometry(.22,8,6),c);
+    corpo.scale.set(.42,.72,1.5);g.add(corpo);
+    const coda=new THREE.Group();coda.position.z=-.3;g.add(coda);
+    const pinna=new THREE.Mesh(new THREE.ConeGeometry(.16,.3,4),c);
+    pinna.rotation.x=-Math.PI/2;pinna.scale.set(.28,1,1);pinna.position.z=-.12;coda.add(pinna);
+    [-1,1].forEach(k=>{                                  // pinne laterali
+      const p2=new THREE.Mesh(new THREE.ConeGeometry(.09,.2,4),c);
+      p2.rotation.z=k*Math.PI/2;p2.scale.set(.3,1,1);p2.position.set(k*.09,0,.02);g.add(p2);
+    });
+    g.layers.enable(1);                                  // niente contorno: sono minuti
+    scene.add(g);
+    l.push({g,coda,cx:rnd(FIUME.da+40,FIUME.a-40),cz:FIUME.z+rnd(-14,14),
+            rx:rnd(6,22),rz:rnd(3,9),sp:rnd(.25,.6)*(Math.random()<.5?1:-1),
+            ph:rnd(0,6.3),prof:rnd(.5,2.2)});
+  }
+  return l;
+})();
+
+function updatePesci(t){
+  PESCI.forEach((p,i)=>{
+    const a=t*p.sp+p.ph;
+    const x=p.cx+Math.cos(a)*p.rx, z=p.cz+Math.sin(a)*p.rz;
+    p.g.position.set(x, FIUME.y-p.prof+Math.sin(t*.7+i)*.18, z);
+    // il muso segue la tangente dell'ellisse
+    p.g.rotation.y=Math.atan2(-Math.sin(a)*p.rx*Math.sign(p.sp),
+                               Math.cos(a)*p.rz*Math.sign(p.sp))+Math.PI/2;
+    p.coda.rotation.y=Math.sin(t*7+i)*.5;      // colpo di coda
+    p.g.rotation.z=Math.sin(t*3.5+i)*.08;
+  });
+}
+
+/* Rottami.
+   Qualunque pezzo puo' staccarsi e diventare un corpo libero: si prende il suo
+   gruppo, lo si toglie dal padre conservando la posizione nel mondo, e da li'
+   in poi lo muovono solo velocita' e gravita'. Lo stesso integratore dei sassi,
+   applicato a oggetti interi. */
+const ROTTAMI=[];
+function staccaPezzo(oggetto,vel,spin){
+  const pos=new THREE.Vector3(), qua=new THREE.Quaternion(), sca=new THREE.Vector3();
+  oggetto.updateMatrixWorld(true);
+  oggetto.matrixWorld.decompose(pos,qua,sca);
+  scene.attach(oggetto);            // conserva la posa nel mondo cambiando padre
+  oggetto.position.copy(pos);oggetto.quaternion.copy(qua);oggetto.scale.copy(sca);
+  ROTTAMI.push({o:oggetto,v:vel.clone(),
+                w:spin||new THREE.Vector3(rnd(-4,4),rnd(-3,3),rnd(-5,5))});
+}
+function updateRottami(dt){
+  for(let i=ROTTAMI.length-1;i>=0;i--){
+    const r=ROTTAMI[i];
+    r.v.y-=9.81*dt;
+    r.o.position.addScaledVector(r.v,dt);
+    r.o.rotation.x+=r.w.x*dt;r.o.rotation.y+=r.w.y*dt;r.o.rotation.z+=r.w.z*dt;
+    const p=r.o.position;
+    const inAcqua=dentroAcqua(p.x,p.z);
+    const suolo=inAcqua?FIUME.y:GROUND.heightAt(p.x,p.z,p.y);
+    if(p.y<=suolo+.12){
+      p.y=suolo+.12;
+      if(inAcqua)spruzzo(p.x,p.z);
+      r.v.multiplyScalar(.24);r.w.multiplyScalar(.3);   // rimbalza e si smorza
+      r.v.y=Math.abs(r.v.y)*.3;
+      if(r.v.length()<.6){ROTTAMI.splice(i,1);}          // si e' fermato
+    }
+  }
+}
+
 const PMOB={fase:'chiuso', t:26, ap:0, sb:0, lamp:0, acceso:false, MAX:1.12,
             ePrec:0, osc:0, semina:0};
 function updatePonteMobile(dt){
@@ -3701,8 +3954,24 @@ function updatePonteMobile(dt){
     }
   }
   updateSassi(dt);
+  updateRottami(dt);
   // sbarra: 0 = alzata (si passa), 1 = abbassata di traverso sulla carreggiata
-  PONTE_M.sbarre.forEach(g=>{g.rotation.z=-(1-P.sb)*Math.PI/2;});
+  PONTE_M.sbarre.forEach(g=>{
+    if(g.userData.rotta)return;
+    g.rotation.z=-(1-P.sb)*Math.PI/2;
+    /* Se l'auto la centra mentre e' abbassata, la sbarra si stacca e vola.
+       La velocita' iniziale e' quella dell'auto: e' l'urto a scagliarla. */
+    if(P.sb>.5&&GUIDA.su&&Math.abs(AUTO.v)>4){
+      const pw=new THREE.Vector3();g.getWorldPosition(pw);
+      const d=Math.hypot(AUTO.g.position.x-pw.x,AUTO.g.position.z-pw.z);
+      if(d<VIA.w*.75){
+        g.userData.rotta=true;
+        const dir=new THREE.Vector3(Math.sin(AUTO.g.rotation.y),0,Math.cos(AUTO.g.rotation.y));
+        staccaPezzo(g,dir.multiplyScalar(Math.abs(AUTO.v)*.8).setY(4.5));
+        AUTO.v*=.55;toast('hai spezzato la sbarra');
+      }
+    }
+  });
   // rosse alternate finche' non e' tutto richiuso
   if(P.fase!=='chiuso'){
     P.lamp-=dt; if(P.lamp<=0){P.lamp=.45;P.acceso=!P.acceso;}
@@ -3768,11 +4037,37 @@ function updateAuto(dt){
     if(!GROUND.blocked(mx,nz,1.1,py)&&GROUND.heightAt(mx,nz,py)-py<=.55)mz=nz;
     if(mx===px&&mz===pz)A.v*=.2;                   // ha sbattuto
     A.g.position.x=mx;A.g.position.z=mz;
-    const gy=GROUND.heightAt(mx,mz,py);
-    A.g.position.y+=(gy-A.g.position.y)*Math.min(1,dt*10);
+
     // le ruote rotolano di quanto ha percorso: giro = 2*pi*r
     const giro=A.v*dt/.36;
     A.ruote.forEach(w=>w.rotation.x+=giro);
+  }
+
+  /* La verticale sta FUORI dal moto orizzontale: prima era dentro, quindi
+     un'auto ferma a mezz'aria non riceveva la gravita' e restava sospesa.
+     Cadere non dipende dall'andare avanti. */
+  {
+    const px=A.g.position.x, pz=A.g.position.z;
+    const inAcqua=dentroAcqua(px,pz);
+    const appoggio=inAcqua?FIUME.y-.25:GROUND.heightAt(px,pz,A.g.position.y);
+    if(A.g.position.y>appoggio+.10){
+      A.vy=(A.vy||0)-9.81*dt;
+      A.g.position.y+=A.vy*dt;
+      if(A.g.position.y<appoggio){A.g.position.y=appoggio;A.vy=0;
+        if(inAcqua)spruzzo(px,pz);}
+    }else{
+      A.vy=0;
+      A.g.position.y+=(appoggio-A.g.position.y)*Math.min(1,dt*10);
+    }
+    if(inAcqua){
+      /* In acqua la macchina non resta appoggiata sul pelo come un giocattolo:
+         galleggia oscillando e cala piano, e si guida a passo d'uomo. */
+      A.v*=Math.pow(.30,dt);
+      A.affonda=Math.min(1.6,(A.affonda||0)+dt*.14);
+      A.g.position.y=appoggio-A.affonda;
+      A.g.rotation.z=Math.sin(clock.elapsedTime*1.5)*.05;
+      A.g.rotation.x=-.07+Math.sin(clock.elapsedTime*1.1)*.03;
+    }else if(A.affonda){A.affonda=0;A.g.rotation.x=0;A.g.rotation.z=0;}
   }
   A.sterzanti.forEach(p=>{p.rotation.y=A.sterzo;});
   GUIDA.kmh=Math.abs(A.v)*3.6;
