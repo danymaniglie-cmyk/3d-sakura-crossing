@@ -1501,7 +1501,9 @@ houses.forEach(h=>{
    attraversate dal treno, ma girato di novanta gradi — quello corre lungo x,
    questo lungo la strada — e con una luce di quindici metri invece di quattro,
    perche' ci deve passare la carreggiata intera. La casa resta sopra. */
-casaGalleria(0,34,Math.PI,22,7,6.5,{luce:15,imposta:4.6,yaw:Math.PI/2});
+const ARCO={x:0, z:34, w:22, d:7, h:6.5, luce:15, imposta:4.6};
+casaGalleria(ARCO.x,ARCO.z,Math.PI,ARCO.w,ARCO.d,ARCO.h,
+             {luce:ARCO.luce,imposta:ARCO.imposta,yaw:Math.PI/2});
 
 
 /* ============ muretti, siepi, cancelli ============ */
@@ -2539,11 +2541,22 @@ const VIA={w:8.4, top:EXPWY.y};
      torna in quota sopra i quartieri di levante fino alla sopraelevata.
      E' lungo a posta: con trecento metri la pendenza sta sotto il cinque per
      cento, cioe' una salita d'autostrada — piana ma che sale. */
-  /* Il raccordo scende sulla carreggiata a sud dell'arco e gira a levante
-     passandogli di fianco: fra l'arco e il ponte sul fiume ci sono due metri
-     scarsi, e attaccando li' la rampa sarebbe nata dentro il portale. */
-  const P=[[3,22],[10,25],[15,31],[16,40],[16,56],[16,80],[19,102],[34,122],[62,129],[90,114],
-           [105,86],[109,52],[111,12],[112,-28],[113,-52],[122,-62]];
+  /* Il tracciato e' scritto RISPETTO ALL'ARCO, non in coordinate assolute:
+     ogni coppia dice "tanti metri a destra dell'arco, tanti a nord". Cosi'
+     spostare tutto il ponte e' una riga sola — SCOSTA — invece di riscrivere
+     quindici coordinate a mano, e se un domani l'arco si sposta il ponte lo
+     segue da solo.
+     Il rettilineo ha tutti i punti sulla stessa ascissa: viene dritto per
+     costruzione, non per fortuna. La curva comincia solo dopo il fiume. */
+  const SCOSTA={x:12, z:22};        // <— sposta l'intero blocco del ponte
+  const REL=[[22,-22],[22,-2],[22,18],[22,38],[22,58],[24,76],[36,90],
+             [62,96],[90,81],[105,53],[109,18],[111,-22],[112,-52]];
+  const P=REL.map(([dx,dz])=>[ARCO.x+dx+SCOSTA.x, ARCO.z+dz+SCOSTA.z]);
+  /* La coda invece NON segue lo scostamento: deve restare cucita alla
+     sopraelevata, che sta dove sta. Spostando anche questa, il ponte finiva
+     quaranta metri prima del punto d'innesto — collegato a niente. */
+  const xF=P[P.length-1][0];
+  P.push([xF+3, EXPWY.z+26], [xF+9, EXPWY.z+9], [xF+18, EXPWY.z], [xF+34, EXPWY.z]);
   const curva=new THREE.CatmullRomCurve3(
     P.map(p=>new THREE.Vector3(p[0],0,p[1])),false,'catmullrom',.35);
 
