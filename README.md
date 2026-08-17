@@ -70,6 +70,12 @@ whole scene for the cost of one extra pass.
 onto a kerb if the rise is under 0.55 m. Movement resolves on X and then Z
 separately, so you slide along a wall instead of sticking to it.
 
+**The full recipe.** [CARTOON.md](CARTOON.md) documents how the look is built,
+with the real numbers: the three-band gradient map, the hand-rolled colour
+management, the four-light rig, the day-cycle palette, the composition pass and
+its Roberts cross, the painted textures, the water shader edits and the
+character proportions — in the order that works, with the traps.
+
 **Verification.** `tools/walktest.mjs` measures behaviour, not appearance — a
 screenshot cannot tell you whether the character climbs the kerb or walks
 through it.

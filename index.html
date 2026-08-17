@@ -2529,105 +2529,97 @@ const FIUME_G=(()=>{
    ============================================================ */
 const VIA={w:8.4, top:EXPWY.y};
 
+/* Un nastro continuo: i vertici sono condivisi fra un tratto e il successivo,
+   quindi non ci sono giunti ne' sporgenze. Serviva perche' l'impalcato a
+   scatole separate, ognuna allungata dell'8% per non lasciare fessure, in
+   salita sporgeva a ogni giunto e da lontano leggeva come una scalinata.
+   lat sposta la sezione di fianco all'asse: cosi' la stessa funzione fa la
+   soletta, l'asfalto e i due parapetti. */
+function nastro(st,lat,semi,yAlto,spess,mat,passoU){
+  const pos=[],uv=[],idx=[];
+  let acc=0;
+  for(let i=0;i<st.length;i++){
+    const s=st[i];
+    if(i)acc+=Math.hypot(s.x-st[i-1].x, s.z-st[i-1].z);
+    const u=acc/passoU;
+    const cx=s.x+s.nx*lat, cz=s.z+s.nz*lat;
+    const ax=s.nx*semi, az=s.nz*semi;
+    pos.push(cx-ax,s.y+yAlto,cz-az);        uv.push(u,0);
+    pos.push(cx+ax,s.y+yAlto,cz+az);        uv.push(u,1);
+    pos.push(cx-ax,s.y+yAlto-spess,cz-az);  uv.push(u,0);
+    pos.push(cx+ax,s.y+yAlto-spess,cz+az);  uv.push(u,1);
+  }
+  for(let i=0;i<st.length-1;i++){
+    const A=i*4, B=A+4;
+    idx.push(A,B,A+1, A+1,B,B+1);        // faccia superiore
+    idx.push(A+2,A+3,B+2, A+3,B+3,B+2);  // faccia inferiore
+    idx.push(A,A+2,B,   A+2,B+2,B);      // fianco sinistro
+    idx.push(A+1,B+1,A+3, A+3,B+1,B+3);  // fianco destro
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+  g.setIndex(idx);g.computeVertexNormals();
+  const m=new THREE.Mesh(g,mat);m.castShadow=true;m.receiveShadow=true;
+  scene.add(m);return m;
+}
+
 (function rampaEViadotto(){
   const B=Batch();
   const CONC=M({map:cementoTex}), ASF=M({map:asphalt}),
-        PARA=M({map:cementoTex,color:0xd8d4cc}), PAINT=C(0xf0ecd8),
-        STEEL=C(0x9aa3ab);
+        PARA=M({map:cementoTex,color:0xd8d4cc}), STEEL=C(0x9aa3ab);
 
-  // Tracciato in pianta: attacco a terra davanti all'arco, curva larga, rettilineo.
-  /* Attacca a terra oltre l'arco, scavalca il fiume di fianco al ponte
-     stradale, prosegue a nord finche' non ha preso quota, poi curva largo e
-     torna in quota sopra i quartieri di levante fino alla sopraelevata.
-     E' lungo a posta: con trecento metri la pendenza sta sotto il cinque per
-     cento, cioe' una salita d'autostrada — piana ma che sale. */
-  /* Il tracciato e' scritto RISPETTO ALL'ARCO, non in coordinate assolute:
-     ogni coppia dice "tanti metri a destra dell'arco, tanti a nord". Cosi'
-     spostare tutto il ponte e' una riga sola — SCOSTA — invece di riscrivere
-     quindici coordinate a mano, e se un domani l'arco si sposta il ponte lo
-     segue da solo.
-     Il rettilineo ha tutti i punti sulla stessa ascissa: viene dritto per
-     costruzione, non per fortuna. La curva comincia solo dopo il fiume. */
-  const SCOSTA={x:-22, z:27};        // <— sposta l'intero blocco del ponte
-  const REL=[[22,-22],[22,-2],[22,18],[22,38],[22,58],[24,76],[36,90],
-             [62,96],[90,81],[105,53],[109,18],[111,-22],[112,-52]];
+  /* Il tracciato e' scritto RISPETTO ALL'ARCO: ogni coppia dice "tanti metri a
+     est, tanti a nord". Spostare tutto il ponte e' una riga sola. */
+  const SCOSTA={x:-22, z:84};        // <— sposta l'intero blocco del ponte
+  const REL=[[22,-22],[22,-6],[22,10],[24,26],[36,40],[62,46],[90,31],
+             [105,3],[109,-32],[111,-72],[112,-102]];
   const P=REL.map(([dx,dz])=>[ARCO.x+dx+SCOSTA.x, ARCO.z+dz+SCOSTA.z]);
-  /* La coda invece NON segue lo scostamento: deve restare cucita alla
-     sopraelevata, che sta dove sta. Spostando anche questa, il ponte finiva
-     quaranta metri prima del punto d'innesto — collegato a niente. */
+  /* La coda NON segue lo scostamento: resta cucita alla sopraelevata, che sta
+     dove sta, e si ferma dentro il suo capo per non restare a sbalzo. */
   const xF=P[P.length-1][0];
-  /* La sopraelevata finisce a EXPWY.to: la coda va tagliata li' dentro, o
-     spostando il blocco verso destra il ponte sporge oltre il suo capo e
-     resta a sbalzo nel vuoto. Il limite si legge dalla sopraelevata stessa,
-     non si scrive a mano. */
-  const xFin=Math.min(xF+34, EXPWY.to-24);
-  P.push([xF+3, EXPWY.z+26], [xF+9, EXPWY.z+9], [xF+18, EXPWY.z], [xFin, EXPWY.z]);
+  P.push([xF+3,EXPWY.z+26],[xF+9,EXPWY.z+9],[xF+18,EXPWY.z],
+         [Math.min(xF+34,EXPWY.to-24),EXPWY.z]);
+
   const curva=new THREE.CatmullRomCurve3(
     P.map(p=>new THREE.Vector3(p[0],0,p[1])),false,'catmullrom',.35);
 
-  const N=260;
-  const pt=curva.getPoints(N);
-  // lunghezze cumulate: servono per distribuire la salita in modo uniforme
+  const N=300, pt=curva.getPoints(N);
   const acc=[0];
   for(let i=1;i<=N;i++)acc.push(acc[i-1]+Math.hypot(pt[i].x-pt[i-1].x,pt[i].z-pt[i-1].z));
-  const LTOT=acc[N];
-  const SALITA=6;                  // pochi metri in piano, poi si sale
-  /* Pendenza costante, non una curva a esse. Il raccordo dolce sembrava
-     elegante ma teneva l'impalcato a ventisei centimetri per sessanta metri:
-     in mezzo alla carreggiata leggeva come un cordolo, non come un ponte.
-     Solo gli ultimi metri si addolciscono, per arrivare in piano sull'altro. */
-  /* L'impalcato e' spesso mezzo metro ed e' centrato sulla quota: partendo da
-     zero il suo asfalto restava 28 cm sopra quello della strada, cioe' un
-     gradino invece di un raccordo. Si parte da -0.25 perche' le due superfici
-     combacino, e si arriva comunque a VIA.top, che e' la quota dell'impalcato
-     esistente. Pendenza costante in mezzo. */
-  const GIU=-.25;
-  const quota=s=>{
-    const t=Math.max(0,Math.min(1,(s-SALITA)/(LTOT-SALITA-26)));
-    return GIU+(VIA.top-GIU)*t;
-  };
-  pt.forEach((p,i)=>p.y=quota(acc[i]));
+  const LTOT=acc[N], SALITA=8, GIU=-.25;
+  // pendenza costante: la quota si ricava dalla distanza percorsa
+  const quota=s=>GIU+(VIA.top-GIU)*Math.max(0,Math.min(1,(s-SALITA)/(LTOT-SALITA-26)));
 
-  for(let i=0;i<N;i++){
-    const a=pt[i], b=pt[i+1];
-    const dx=b.x-a.x, dz=b.z-a.z, dy=b.y-a.y;
-    const oriz=Math.hypot(dx,dz), len=Math.hypot(oriz,dy)*1.08;
-    const yaw=Math.atan2(-dz,dx), pend=-Math.atan2(dy,oriz);
-    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2, mz=(a.z+b.z)/2;
-    /* Dove il tracciato passa dentro la sagoma del ponte stradale e sta ancora
-       basso, non si costruisce nulla: la carreggiata sul fiume c'e' gia', e
-       ridisegnarla sette centimetri piu' su darebbe due impalcati sovrapposti
-       che sfarfallano. La rampa ricompare appena esce dal ponte. */
-    const suPonte=Math.abs(mx)<11.6 && Math.abs(mz-FIUME.z)<FIUME.sem+4.6 && my<2.2;
-    if(suPonte)continue;
-    B.add(new THREE.BoxGeometry(len,.5,VIA.w),CONC,mx,my,mz,0,yaw,pend,len/3,VIA.w/4);
-    B.add(new THREE.BoxGeometry(len,.08,VIA.w-.9),ASF,mx,my+.28,mz,0,yaw,pend,len/3,2);
-    [-1,1].forEach(k=>{
-      const nx=Math.cos(yaw+Math.PI/2)*k*(VIA.w/2-.1), nz=-Math.sin(yaw+Math.PI/2)*k*(VIA.w/2-.1);
-      B.add(new THREE.BoxGeometry(len,1.05,.3),PARA,mx+nx,my+.72,mz+nz,0,yaw,pend,len/3,1);
-      B.add(new THREE.BoxGeometry(len,.12,.42),STEEL,mx+nx,my+1.30,mz+nz,0,yaw,pend);
-    });
-    if(i%2===0)B.add(new THREE.BoxGeometry(len*.5,.03,.18),PAINT,mx,my+.33,mz,0,yaw,pend);
-    /* Sopra il fiume si va sempre su pile, anche dove l'impalcato e' basso:
-       col criterio della sola quota ci finiva il rilevato pieno, che in mezzo
-       al canale sarebbe una diga. */
-    const sopraFiume=Math.abs(mz-FIUME.z)<FIUME.sem+2.5;
-    if(i%8===4 && (my>2.2||sopraFiume) && !GROUND.blocked(mx,mz,2.6)){
-      const dentro=Math.abs(mz-FIUME.z)<FIUME.sem;
-      const base=dentro?FIUME.fondo:0;
-      const h=my-base-.35;
-      B.add(new THREE.CylinderGeometry(.95,1.15,h,10),CONC,mx,base+h/2,mz,0,0,0,1,3);
-      B.add(new THREE.BoxGeometry(3.4,.7,3.4),CONC,mx,my-.62,mz,0,yaw,0,1,1);
-      if(!dentro)GROUND.addWall(mx,mz,2.2,2.2);
+  // stazioni: punto, quota e normale orizzontale alla marcia
+  const st=pt.map((p,i)=>{
+    const a=pt[Math.max(0,i-1)], b=pt[Math.min(N,i+1)];
+    let dx=b.x-a.x, dz=b.z-a.z;
+    const L=Math.hypot(dx,dz)||1; dx/=L; dz/=L;
+    return {x:p.x, y:quota(acc[i]), z:p.z, nx:-dz, nz:dx};
+  });
+
+  nastro(st,0,VIA.w/2,      0,   .55,CONC,3);     // soletta
+  nastro(st,0,VIA.w/2-.5, .32,   .06,ASF ,3);     // manto
+  [-1,1].forEach(k=>{
+    nastro(st,k*(VIA.w/2-.16),.16,1.35,1.05,PARA,3);   // parapetto
+    nastro(st,k*(VIA.w/2-.16),.22,1.46,.11 ,STEEL,3);  // corrimano
+  });
+
+  // pile e rilevato: questi restano pezzi distinti, perche' pezzi distinti sono
+  for(let i=6;i<N;i+=9){
+    const s=st[i], my=s.y;
+    const yaw=Math.atan2(-s.nz,s.nx)+Math.PI/2;
+    const sopraFiume=Math.abs(s.z-FIUME.z)<FIUME.sem+2.5;
+    if((my>2.2||sopraFiume) && !GROUND.blocked(s.x,s.z,2.6)){
+      const base=Math.abs(s.z-FIUME.z)<FIUME.sem?FIUME.fondo:0;
+      const h=my-base-.4;
+      if(h>.6){
+        B.add(new THREE.CylinderGeometry(.95,1.15,h,10),CONC,s.x,base+h/2,s.z,0,0,0,1,3);
+        B.add(new THREE.BoxGeometry(3.4,.7,3.4),CONC,s.x,my-.72,s.z,0,yaw,0,1,1);
+        if(base===0)GROUND.addWall(s.x,s.z,2.2,2.2);
+      }
     }
-    /* Rilevato sotto la parte bassa. Prima erano blocchi separati, uno ogni
-       quattro segmenti, ciascuno alto quanto l'impalcato in quel punto: da fuori
-       leggevano come una scalinata. Ora ogni segmento ha il suo, inclinato come
-       la carreggiata e affondato sotto terra, cosi' i pezzi si toccano e il
-       fianco sale liscio come un rilevato autostradale. */
-    if(my>.30 && my<=2.6 && !sopraFiume)
-      B.add(new THREE.BoxGeometry(len*1.02,my+4,VIA.w-1.0),CONC,
-            mx,my/2-2,mz,0,yaw,pend,len/3,1);
   }
   B.flush(scene,true,true);
 })();
