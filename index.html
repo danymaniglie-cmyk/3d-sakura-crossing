@@ -95,7 +95,11 @@ scene.background=new THREE.Color(0xf3b98c);
 scene.fog=new THREE.Fog(0xf0ad86,58,380);
 const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,560);
 const renderer=new THREE.WebGLRenderer({antialias:false});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+/* Su schermi a densita' alta si disegnavano quattro volte i pixel necessari:
+   la scena passa gia' quattro volte nel condotto (prepass, scena, bloom,
+   composizione), quindi il costo si moltiplica. 1.5 tiene i contorni netti
+   senza il quadruplo del lavoro. */
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
 renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 // La scena viene disegnata in lineare dentro un render target HDR: tone mapping,
@@ -115,7 +119,8 @@ const bounce=new THREE.DirectionalLight(0xffb98a,.5);
 bounce.position.set(-14,-10,-6);scene.add(bounce);
 const sun=new THREE.DirectionalLight(0xffb478,1.55);
 sun.position.set(30,9,-16);sun.castShadow=true;
-sun.shadow.mapSize.set(2048,2048);
+sun.shadow.mapSize.set(1536,1536);   // 2048 costava il 78% in piu' senza che
+                                     // i bordi d'ombra cambiassero a schermo
 const D=30;
 sun.shadow.camera.left=-D;sun.shadow.camera.right=D;sun.shadow.camera.top=D;sun.shadow.camera.bottom=-D;
 sun.shadow.camera.far=110;sun.shadow.bias=-.0009;sun.shadow.normalBias=.02;
@@ -2425,7 +2430,11 @@ const FIUME_G=(()=>{
 
   const onda=new THREE.PlaneGeometry(L,W,176,18);
   const acqua=new THREE.Water(onda,{
-    textureWidth:512, textureHeight:512,
+    /* Il riflesso e' un secondo rendering completo della scena a ogni frame:
+       e' la voce piu' cara del quadro. A 256 la superficie e' comunque mossa e
+       distorta dalla normal map, e la differenza a schermo non si distingue —
+       ma il costo si dimezza. */
+    textureWidth:256, textureHeight:256,
     waterNormals:normAcqua,
     sunDirection:new THREE.Vector3(0,1,0),
     sunColor:0xffe6c4, waterColor:0x3f6f8c,
@@ -2434,6 +2443,15 @@ const FIUME_G=(()=>{
   acqua.rotation.x=-Math.PI/2;
   acqua.position.set(0,FIUME.y,FIUME.z);
   acqua.layers.enable(1);      // fuori dal prepass dei contorni
+  /* Il riflesso ridisegna l'intera scena — quattromilacinquecento mesh — a ogni
+     frame. Ricalcolarlo a frame alterni dimezza la voce piu' cara del quadro e
+     non si vede: la superficie e' gia' mossa e distorta dalla normal map, e il
+     riflesso cambia meno di quanto cambi l'onda che lo deforma. */
+  (function riflessoAFrameAlterni(){
+    const orig=acqua.onBeforeRender;
+    let n=0;
+    acqua.onBeforeRender=function(){ if((n++&1)===0)orig.apply(this,arguments); };
+  })();
   g.add(acqua);
 
   /* Luccichii: puntini che salgono e scendono col riflesso e si accendono a
@@ -2647,6 +2665,23 @@ const PONTE_M=(function rampaEViadotto(){
     apparato(st[iSud],-1); apparato(st[iNord],1);
   } else sezioni(null, st);
 
+  /* Il ponte si calpesta. Senza piani registrati ci si sprofonda dentro, ed e'
+     il difetto che si sentiva camminandoci sopra.
+     Si registra solo il tratto basso: heightAt restituisce la quota MASSIMA fra
+     quelle sovrapposte, quindi registrare anche la parte alta aggancerebbe alla
+     corsia di sopra chi passa sotto, sparandolo per aria. Piu' su non ci si
+     arriva comunque, perche' il gradino massimo e' mezzo metro. */
+  for(let i=1;i<st.length;i++){
+    const a=st[i-1], c=st[i];
+    if(c.y>3.4)continue;
+    const L=Math.hypot(c.x-a.x,c.z-a.z)*1.7;
+    GROUND.addPlat((a.x+c.x)/2,(a.z+c.z)/2,VIA.w*.86,L,c.y+.34);
+    // parapetti solidi solo dove si e' gia' staccati da terra, o murerebbero
+    // la strada al livello del suolo
+    if(c.y>.9)[-1,1].forEach(k=>
+      GROUND.addWall(c.x+k*c.nx*(VIA.w/2), c.z+k*c.nz*(VIA.w/2), .6, L));
+  }
+
   // pile e rilevato: questi restano pezzi distinti, perche' pezzi distinti sono
   for(let i=6;i<N;i+=9){
     const s=st[i], my=s.y;
@@ -2669,10 +2704,12 @@ const PONTE_M=(function rampaEViadotto(){
 /* La corrente: due lastre che scorrono a velocita' diverse nello stesso verso,
    piu' la schiuma di sponda che avanza piu' piano. Il disallineamento fra i due
    disegni fa il luccichio, e costa due somme per frame invece di uno shader. */
+let _dtFiume=.016;
 function updateFiume(t){
   // Water anima il proprio riflesso da questo uniform: e' il suo orologio
   FIUME_G.acqua.material.uniforms.time.value=t*.62;
   FIUME_G.schiuma.forEach((s,i)=>{s.offset.x=-t*.014-i*.5;});
+  updateTraghetto(_dtFiume,t);
 
   /* L'onda: somma di tre seni con lunghezze e versi diversi. Una sola sinusoide
      legge come una lamiera ondulata che scorre; ne bastano tre incommensurabili
@@ -2702,7 +2739,7 @@ function updateFiume(t){
 }
 
 function updateLife(dt,t){
-  updateFiume(t);
+  _dtFiume=dt;updateFiume(t);
   // passanti
   npcs.forEach(n=>{
     if(n.idle){
@@ -3171,6 +3208,60 @@ function righello(){
    battenti lo usano con segno opposto, cosi' non possono disallinearsi.
    Ruotano attorno all'asse X perche' li' la carreggiata corre lungo z: la
    cerniera e' la sponda, e il capo libero e' quello che si alza. */
+/* Traghetti.
+   E' la ragione per cui il ponte si apre: senza qualcosa che passi, alzarlo e'
+   un gesto senza motivo. Navigano lungo il canale e il ponte resta aperto
+   finche' non sono passati — non per un timer deciso a tavolino. */
+function traghetto(col){
+  const g=new THREE.Group();
+  const scafo=new THREE.Mesh(new THREE.SphereGeometry(1,20,10,0,6.284,Math.PI/2,Math.PI/2),
+    M({map:cementoTex,color:col}));
+  scafo.scale.set(2.4,1.5,8.0);scafo.castShadow=true;g.add(scafo);
+  // murata e ponte di coperta
+  box(4.9,.5,15.4,M({map:cementoTex,color:col}),0,.18,0,g);
+  box(4.4,.12,14.6,C(0xd8cfbd),0,.46,0,g);
+  // sovrastruttura con oblo' accesi
+  const cab=box(3.2,1.9,5.2,C(0xf2efe6),0,1.42,-1.6,g);cab.castShadow=true;
+  box(3.4,.16,5.4,C(0xcfc6b6),0,2.44,-1.6,g);
+  for(let i=-1;i<=1;i++)[-1,1].forEach(k=>{
+    const o=new THREE.Mesh(new THREE.CircleGeometry(.22,12),
+      new THREE.MeshBasicMaterial({color:0xffe6b0}));
+    o.position.set(k*1.61,1.5,-1.6+i*1.5);o.rotation.y=k*Math.PI/2;g.add(o);
+  });
+  cyl(.42,.46,2.1,C(0xe8e4da),0,2.9,-2.4,10,g);            // fumaiolo
+  cyl(.44,.44,.6,C(0xc0392f),0,3.45,-2.4,10,g);            // fascia rossa
+  cyl(.07,.07,3.2,C(0xd8d4cc),0,2.6,4.6,6,g);              // albero
+  box(.9,.6,.05,C(0xd8443c),.5,3.7,4.6,g);                 // bandiera
+  g.visible=false;scene.add(g);
+  return g;
+}
+
+const TRAGHETTI=(()=>{
+  const l=[traghetto(0xe8e2d4),traghetto(0xc9d8e2)];
+  return {l, attivo:null, x:0, verso:1};
+})();
+
+function partenzaTraghetto(){
+  const T=TRAGHETTI;
+  T.attivo=T.l[Math.floor(Math.random()*T.l.length)];
+  T.verso=Math.random()<.5?1:-1;
+  T.x=-T.verso*78;
+  T.attivo.visible=true;
+  T.attivo.rotation.y=T.verso>0?Math.PI/2:-Math.PI/2;
+}
+
+function updateTraghetto(dt,t){
+  const T=TRAGHETTI;
+  if(!T.attivo)return false;
+  T.x+=T.verso*7.5*dt;
+  const g=T.attivo;
+  g.position.set(T.x, FIUME.y-.35+Math.sin(t*1.2)*.05, FIUME.z);
+  g.rotation.z=Math.sin(t*.9)*.02;
+  g.rotation.x=Math.sin(t*1.5)*.012;
+  if(Math.abs(T.x)>80){g.visible=false;T.attivo=null;return false;}
+  return true;
+}
+
 /* Sassi e calcinacci.
    Fisica vera, non un'animazione: la velocita' iniziale di ogni scheggia e'
    quella tangenziale del punto del battente da cui si stacca — omega per raggio,
@@ -3259,13 +3350,17 @@ function updatePonteMobile(dt){
       P.sb=Math.min(1,P.sb+dt/1.6); if(P.sb>=1)P.fase='apre';
       break;
     case 'apre':
-      P.ap=Math.min(1,P.ap+dt/4.5); if(P.ap>=1){P.fase='aperto';P.t=9;}
+      P.ap=Math.min(1,P.ap+dt/4.5);
+      if(P.ap>=1){P.fase='aperto';P.t=3;partenzaTraghetto();}
       break;
     case 'aperto':
-      P.t-=dt; if(P.t<=0)P.fase='chiude';
+      // non un timer: si chiude quando il traghetto e' passato davvero
+      P.t-=dt;
+      if(!TRAGHETTI.attivo && P.t<=0)P.fase='chiude';
       break;
     case 'chiude':
-      P.ap=Math.max(0,P.ap-dt/4.5); if(P.ap<=0)P.fase='rialza';
+      P.ap=Math.max(0,P.ap-dt/4.5);
+      if(P.ap<=0){P.fase='rialza';P.osc=1;}   // il rimbalzo si arma qui, una volta
       break;
     default:                                         // solo ora risale la sbarra
       P.sb=Math.max(0,P.sb-dt/1.6);
@@ -3278,7 +3373,9 @@ function updatePonteMobile(dt){
 
   /* Assestamento: arrivando in appoggio l'impalcato rimbalza appena e si ferma.
      Senza, la chiusura finisce di colpo e trecento tonnellate sembrano cartone. */
-  if(P.ap<=0 && P.fase==='rialza' && P.osc===0 && P.osc!==-1){P.osc=1;}
+  /* L'assestamento si armava dentro questo blocco con la condizione osc===0,
+     che torna vera appena il rimbalzo e' finito: finche' la fase durava si
+     riarmava da solo, e da fuori si vedevano tre scatti invece di uno. */
   if(P.osc>0)P.osc=Math.max(0,P.osc-dt*2.4);
   const molla=P.osc>0 ? Math.sin(P.osc*20)*P.osc*P.osc*.05 : 0;
 
