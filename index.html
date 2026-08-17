@@ -7,7 +7,7 @@
   Licensed under the GNU General Public License v3.0 or later.
   This program comes with ABSOLUTELY NO WARRANTY. See LICENSE.
 -->
-<html lang="it">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
@@ -89,27 +89,27 @@
 </style>
 </head>
 <body>
-<div id="rotate"><div class="ico"></div><div>Gira il telefono in orizzontale</div></div>
+<div id="rotate"><div class="ico"></div><div>Turn your phone sideways</div></div>
 <div id="hud">
   <div id="tip"></div>
-  <button id="fs">SCHERMO INTERO</button>
+  <button id="fs">FULL SCREEN</button>
   <div class="pad" id="pad"><div class="nub" id="nub"></div></div>
-  <div id="view">1ª / 3ª</div>
-  <div id="run">CORRI</div>
-  <div id="giu">GIÙ</div>
+  <div id="view">1st / 3rd</div>
+  <div id="run">RUN</div>
+  <div id="giu">DIVE</div>
   <a id="angolo" href="https://github.com/danymaniglie-cmyk/3d-sakura-crossing"
      target="_blank" rel="noopener">★ GitHub</a>
 </div>
 <div id="veil">
   <div class="jp">ふみきり</div>
   <h1>Sakura <span>Crossing</span></h1>
-  <p>Sei nuovo del quartiere. Sei persone vivono qui: parlaci, accetta i loro incarichi, guadagnati la loro fiducia. I giorni passano e non finiscono mai.</p>
-  <button id="go">INIZIA LA STORIA</button>
+  <p>You are new to the neighbourhood. Six people live here: talk to them, run their errands, earn their trust. The days go by and never end.</p>
+  <button id="go">START THE STORY</button>
   <!-- Un modo per contare i giocatori senza tracciare nessuno: chi clicca qui
        diventa una visita vera al repository, e quella GitHub la conta. E' anche
        il solo canale da cui possono arrivare stelle e contributi. -->
   <a id="src" href="https://github.com/danymaniglie-cmyk/3d-sakura-crossing"
-     target="_blank" rel="noopener">★ codice sorgente · GitHub</a>
+     target="_blank" rel="noopener">★ source code · GitHub</a>
 </div>
 <script src="vendor/three.min.js"></script>
 <script src="vendor/BufferGeometryUtils.js"></script>
@@ -2350,32 +2350,32 @@ function person(x,z,dir,look,info){
 }
 person(-7.1,-20,1,{skin:0xf6dcc8,skinCss:'#f6dcc8',eye:'#4a6b9c',top:0xf6f2ec,bottom:0x3d4668,
   collar:0x2b3f6b,skirt:true,socks:0xf2efe8,shoe:0x2f2b36,hair:0x3b2f38,pony:true,bag:0xd8607f},
-  {id:'yuki',name:'Yuki',role:'studentessa'});
+  {id:'yuki',name:'Yuki',role:'student'});
 // donna adulta: piu' alta della studentessa, corporatura asciutta
 person(7.1,12,-1,{skin:0xf8e0cc,skinCss:'#f8e0cc',eye:'#7a5b3f',top:0xe9a7b8,bottom:0x5b4a6b,
   collar:0xc8657f,skirt:true,apron:0xf4ead8,shoe:0x8a6a55,hair:0x2f2a33,bun:true,
   scale:1.02,testa:.95,spalle:.98,torace:.97,arti:.96},
-  {id:'mei',name:'Mei',role:'fioraia'});
+  {id:'mei',name:'Mei',role:'florist'});
 // bambino: non un adulto rimpicciolito. Testa grande, spalle strette, arti sottili
 person(-7.4,8,-1,{skin:0xf7d9bd,skinCss:'#f7d9bd',eye:'#4f7f5f',top:0xa8c3e0,bottom:0x4a4f5e,
   collar:0xe8b04a,shoe:0xd85a4a,hair:0x6b4a3a,scale:.80,bag:0xe8b04a,smile:true,
   testa:1.22,spalle:.86,torace:.92,arti:.90},
-  {id:'haru',name:'Haru',role:'ragazzino'});
+  {id:'haru',name:'Haru',role:'kid'});
 // uomo robusto: spalle larghe, torace pieno, testa piccola rispetto al corpo
 person(7.4,-4,1,{skin:0xf2cfae,skinCss:'#f2cfae',eye:'#5a4632',top:0xf2f0e8,bottom:0x3c5a4a,
   collar:0xb8563f,apron:0xe8e2d2,shoe:0x4a4038,hair:0x3a2f2c,hat:0xf2f0e8,bare:true,
   scale:1.07,testa:.90,spalle:1.20,torace:1.16,arti:1.18},
-  {id:'kenji',name:'Kenji',role:'panettiere'});
+  {id:'kenji',name:'Kenji',role:'baker'});
 // anziana: bassa, curva in avanti, spalle strette
 person(-6.9,-3.2,1,{skin:0xf0d8c4,skinCss:'#f0d8c4',eye:'#6a6a72',brow:'#9a9098',browCss:'#9a9098',
   top:0xcfc7bb,bottom:0x6b6257,collar:0x8f8578,skirt:true,shoe:0x5a5048,hair:0xd8d3cc,bun:true,scarf:0xb8908f,
   scale:.87,testa:1.02,spalle:.88,torace:1.04,arti:.94,curva:.30},
-  {id:'sato',name:'Nonna Sato',role:'vicina',idle:true});
+  {id:'sato',name:'Granny Sato',role:'neighbour',idle:true});
 // uomo asciutto e alto
 person(-10.6,3.4,1,{skin:0xeed3b6,skinCss:'#eed3b6',eye:'#3f4a5f',top:0x2f4f7a,bottom:0x22304a,
   collar:0x18243a,shoe:0x22242c,hair:0x2a2530,hat:0x2f4f7a,smile:false,
   scale:1.05,testa:.92,spalle:1.10,torace:.98,arti:1.02},
-  {id:'tanaka',name:'Tanaka',role:'casellante',idle:true});
+  {id:'tanaka',name:'Tanaka',role:'crossing keeper',idle:true});
 
 /* gatto sul muretto */
 const cat=(()=>{
@@ -3281,7 +3281,7 @@ document.head.appendChild(UI);
 const gui=document.createElement('div');gui.id='gui';
 gui.innerHTML=`<div id="obj"></div><div id="clock"></div><div id="pos"></div><div id="bar"><i></i></div>
 <button id="act"></button>
-<div id="dlg"><div class="who"></div><div class="txt"></div><div class="ch"></div><div class="go">tocca per continuare</div></div>
+<div id="dlg"><div class="who"></div><div class="txt"></div><div class="ch"></div><div class="go">tap to continue</div></div>
 <div id="toast"></div>`;
 document.body.appendChild(gui);
 const $obj=gui.querySelector('#obj'),$clock=gui.querySelector('#clock'),$bar=gui.querySelector('#bar'),
@@ -3299,12 +3299,12 @@ function setObj(t){if(!t){$obj.classList.remove('on');return;}$obj.innerHTML=t;$
 
 /* ---------- luoghi noti ---------- */
 const PLACES={
-  jizo:{p:new THREE.Vector3(-9.9,0,19.5),n:'il piccolo santuario'},
-  fermata:{p:new THREE.Vector3(-7.3,0,-24),n:'la fermata del bus'},
-  distributore:{p:new THREE.Vector3(-7.1,0,-3.5),n:'il distributore automatico'},
-  passaggio:{p:new THREE.Vector3(0,0,0),n:'il passaggio a livello'},
-  bacheca:{p:new THREE.Vector3(7.35,0,4),n:'la bacheca dei manifesti'},
-  ciliegio:{p:new THREE.Vector3(-9.4,0,-11),n:'il ciliegio grande'}
+  jizo:{p:new THREE.Vector3(-9.9,0,19.5),n:'the little shrine'},
+  fermata:{p:new THREE.Vector3(-7.3,0,-24),n:'the bus stop'},
+  distributore:{p:new THREE.Vector3(-7.1,0,-3.5),n:'the vending machine'},
+  passaggio:{p:new THREE.Vector3(0,0,0),n:'the level crossing'},
+  bacheca:{p:new THREE.Vector3(7.35,0,4),n:'the notice board'},
+  ciliegio:{p:new THREE.Vector3(-9.4,0,-11),n:'the big cherry tree'}
 };
 // i luoghi notevoli seguono l'allargamento della carreggiata
 Object.values(PLACES).forEach(pl=>{
@@ -3313,41 +3313,41 @@ Object.values(PLACES).forEach(pl=>{
 
 /* ---------- battute ---------- */
 const LINES={
-  yuki:{hi:["Ah, sei tu. Ho perso di nuovo il treno delle 18:40.",
-            "Da qui il tramonto sui binari è la cosa più bella del quartiere, non trovi?",
-            "Se senti la campanella, fermati. Mio nonno diceva sempre così."],
-        warm:["Sai che ti aspettavo? Volevo farti vedere una cosa al ciliegio grande.",
-              "Da quando ci sei tu, questo passaggio a livello sembra meno noioso."]},
-  mei:{hi:["I fiori di stasera sono già tutti venduti. Resta solo il profumo.",
-           "Le ortensie vogliono ombra. Come me, dopo le sei.",
-           "Se vedi Nonna Sato, dille che le tengo da parte le peonie."],
-       warm:["Tieni, questo è per te. Non dire niente, è solo un fiore.",
-             "Mi piace quando passi di qui. Il negozio sembra meno vuoto."]},
-  haru:{hi:["Ho contato ventisette vagoni ieri! Ventisette!",
-            "Il gatto sul muretto si chiama Mochi. Non si fa mai prendere.",
-            "Scommetto che non arrivi al santuario prima del prossimo treno."],
-        warm:["Quando sarò grande guiderò il treno delle 18:40. Tu sali, va bene?",
-              "Ti ho tenuto il posto migliore per guardare: proprio lì, davanti alle sbarre."]},
-  kenji:{hi:["Il forno è ancora caldo. L'ultimo pane della giornata è sempre il migliore.",
-             "Ho impastato dalle quattro. Il rumore dei treni ormai è la mia sveglia.",
-             "Se hai fame passa domani presto, non ti faccio pagare."],
-         warm:["Ti ho messo da parte il pane al latte. Quello buono, non quello del bancone.",
-               "Mia moglie diceva che il quartiere si riconosce da chi ci cammina la sera."]},
-  sato:{hi:["Alla mia età si guardano passare i treni e basta, sai?",
-            "Cinquant'anni che vivo qui. Le sbarre suonavano già così.",
-            "Il ciliegio l'ha piantato mio marito. Adesso è più alto della casa."],
-        warm:["Vieni a sederti un momento. Le storie vecchie hanno bisogno di orecchie giovani.",
-              "Sei un bravo ragazzo. Torna quando vuoi, la porta è aperta."]},
-  tanaka:{hi:["Il 1042 è in ritardo di due minuti. Due. Inaccettabile.",
-              "Trent'anni a questo passaggio. Conosco ogni treno dal rumore.",
-              "Quando lampeggia, tu stai indietro. Non si discute."],
-          warm:["Ti sei guadagnato il rispetto delle sbarre, ragazzo.",
-                "Vieni, ti spiego come funziona il relè. Non lo dico a tutti."]}
+  yuki:{hi:["Oh, it's you. I missed the 18:40 train again.",
+            "The sunset over the tracks is the best thing round here, don't you think?",
+            "If you hear the bell, stop. My grandfather always said that."],
+        warm:["I was hoping you'd come. I wanted to show you something at the big cherry tree.",
+              "Since you turned up, this level crossing feels a lot less boring."]},
+  mei:{hi:["Tonight's flowers are all sold. Only the scent is left.",
+           "Hydrangeas want shade. Same as me, after six.",
+           "If you see Granny Sato, tell her I'm keeping the peonies for her."],
+       warm:["Here, this one's for you. Don't say anything, it's only a flower.",
+             "I like it when you come by. The shop feels less empty."]},
+  haru:{hi:["I counted twenty-seven carriages yesterday! Twenty-seven!",
+            "The cat on the wall is called Mochi. He never lets anyone catch him.",
+            "Bet you can't reach the shrine before the next train."],
+        warm:["When I grow up I'll drive the 18:40. You'll get on, right?",
+              "I saved you the best spot to watch from — right there, by the barriers."]},
+  kenji:{hi:["The oven's still warm. The last loaf of the day is always the best one.",
+             "I've been kneading since four. The trains are my alarm clock now.",
+             "If you're hungry come by early tomorrow, on the house."],
+         warm:["I put the milk bread aside for you. The good one, not the counter stuff.",
+               "My wife used to say you know a neighbourhood by who walks it in the evening."]},
+  sato:{hi:["At my age you just watch the trains go past, you know?",
+            "Fifty years I've lived here. The barriers sounded just like that back then.",
+            "My husband planted that cherry tree. It's taller than the house now."],
+        warm:["Come and sit a moment. Old stories need young ears.",
+              "You're a good sort. Come back whenever — the door is open."]},
+  tanaka:{hi:["The 1042 is two minutes late. Two. Unacceptable.",
+              "Thirty years at this crossing. I know every train by its sound.",
+              "When it flashes, you stand back. That's not up for discussion."],
+          warm:["You've earned the barriers' respect, lad.",
+                "Come here, I'll show you how the relay works. I don't tell everyone."]}
 };
 
 /* ---------- incarichi ---------- */
-const ITEMS=['un sacchetto di pane caldo','un mazzo di peonie','una lettera','un ombrello dimenticato',
-  'una scatola di dolci','un libro di scuola','un thermos di tè'];
+const ITEMS=['a bag of warm bread','a bunch of peonies','a letter','a forgotten umbrella',
+  'a box of sweets','a school book','a flask of tea'];
 function otherNpc(exceptId){
   const c=npcs.filter(n=>n.id&&n.id!==exceptId);
   return c[(Math.random()*c.length)|0];
@@ -3358,19 +3358,19 @@ function newQuest(giver){
     const to=otherNpc(giver.id), item=ITEMS[(Math.random()*ITEMS.length)|0];
     return {kind:'consegna',giver:giver.id,giverName:giver.name,to:to.id,toName:to.name,item,
       t:78,max:78,
-      ask:`Mi porteresti ${item} a ${to.name}? Fai in fretta, prima che il quartiere si addormenti.`,
-      label:`Porta <b>${item}</b> a <b>${to.name}</b>`};
+      ask:`Would you take ${item} to ${to.name}? Be quick, before the neighbourhood falls asleep.`,
+      label:`Take <b>${item}</b> to <b>${to.name}</b>`};
   }
   if(roll<.72){
     const keys=Object.keys(PLACES), k=keys[(Math.random()*keys.length)|0];
     return {kind:'luogo',giver:giver.id,giverName:giver.name,place:k,
-      ask:`Vai a dare un'occhiata a ${PLACES[k].n}? Con calma, non c'è fretta.`,
-      label:`Raggiungi <b>${PLACES[k].n}</b>`};
+      ask:`Would you go and look at ${PLACES[k].n}? No rush at all.`,
+      label:`Get to <b>${PLACES[k].n}</b>`};
   }
   const need=4+((Math.random()*3)|0);
   return {kind:'petali',giver:giver.id,giverName:giver.name,need,got:0,
-    ask:`Mi raccogli ${need} petali? Sono per il santuario. Prenditi il tempo che vuoi.`,
-    label:`Raccogli petali: <b>0/${need}</b>`};
+    ask:`Could you pick ${need} petals for me? They are for the shrine. Take your time.`,
+    label:`Pick petals: <b>0/${need}</b>`};
 }
 
 /* ---------- petali raccoglibili ---------- */
@@ -3424,13 +3424,13 @@ function talkTo(n){
 
   // consegna in corso destinata a lui
   if(G.quest&&G.quest.kind==='consegna'&&G.quest.to===n.id&&G.carrying){
-    speak(n.name,[`Oh! ${G.carrying}. Sei arrivato in tempo, grazie di cuore.`],()=>{
+    speak(n.name,[`Oh! ${G.carrying}. You made it in time — thank you.`],()=>{
       completeQuest();closeDlg();});
     return;
   }
   // rapporto col committente mentre l'incarico è aperto
   if(G.quest&&G.quest.giver===n.id){
-    speak(n.name,[line,'Ci stai ancora pensando? Fai con calma, ma non troppa.'],closeDlg);
+    speak(n.name,[line,'Still thinking it over? Take your time, but not too much.'],closeDlg);
     return;
   }
   if(G.quest){speak(n.name,[line],closeDlg);return;}
@@ -3439,8 +3439,8 @@ function talkTo(n){
     const q=newQuest(n);
     $txt.textContent=q.ask;$who.textContent=n.name;
     choices([
-      {t:'Ci penso io',f:()=>{acceptQuest(q,n);closeDlg();}},
-      {t:'Magari dopo',f:()=>{closeDlg();}}
+      {t:"I'll do it",f:()=>{acceptQuest(q,n);closeDlg();}},
+      {t:'Maybe later',f:()=>{closeDlg();}}
     ]);
   });
 }
@@ -3449,7 +3449,7 @@ function acceptQuest(q,n){
   if(q.kind==='consegna'){G.carrying=q.item;$bar.style.display='block';}
   if(q.kind==='petali')spawnPickups(q.need+3);
   setObj(q.label);
-  toast(q.kind==='consegna'?'Corri! Il tempo scorre':'Nuovo incarico');
+  toast(q.kind==='consegna'?'Hurry — the clock is running':'New errand');
 }
 function completeQuest(){
   const q=G.quest;if(!q)return;
@@ -3457,13 +3457,13 @@ function completeQuest(){
   if(q.kind==='consegna')G.aff[q.to]=(G.aff[q.to]||0)+1;
   G.quest=null;G.carrying=null;G.done++;
   $bar.style.display='none';clearPickups();setObj(null);
-  toast('Fatto! Il quartiere ti conosce un po\' di più');
-  if(G.done%3===0){G.day++;toast('È passato un altro giorno · Giorno '+G.day);}
+  toast('Done. The neighbourhood knows you a little better');
+  if(G.done%3===0){G.day++;toast('Another day has gone by · Day '+G.day);}
 }
 function failQuest(msg){
   const q=G.quest;if(!q)return;
   G.quest=null;G.carrying=null;$bar.style.display='none';clearPickups();setObj(null);
-  toast(msg||'Troppo tardi... ma non è grave');
+  toast(msg||'Too late... never mind');
 }
 
 /* ---------- azione di contesto ---------- */
@@ -3480,12 +3480,12 @@ addEventListener('keydown',e=>{if(e.code==='KeyE'&&nearNpc&&!G.talking)talkTo(ne
 
 /* ---------- ciclo del giorno ---------- */
 const KEY=[
-  {t:0.00,sun:0xffcaa0,si:1.15,hs:0xffd9c4,hg:0x6b5a76,hi:.75,fog:0xf3d3b4,sky:0xffd9bc,y:6,  n:'Alba'},
-  {t:0.28,sun:0xfdf0e2,si:1.32,hs:0xcfe2f4,hg:0x8e8ea6,hi:.72,fog:0xd2e2f2,sky:0xb8d2ef,y:26,n:'Mattina'},
-  {t:0.55,sun:0xfdf1dc,si:1.28,hs:0xd2e2f6,hg:0x8a8896,hi:.70, fog:0xd6e2f0,sky:0xc0d8ee,y:22,n:'Pomeriggio'},
-  {t:0.75,sun:0xffd6ac,si:1.42,hs:0xffd2c8,hg:0x6d6180,hi:.92, fog:0xf6c9a6,sky:0xfff2e0,y:8, n:'Tramonto'},
-  {t:0.88,sun:0xc9a0d0,si:.85, hs:0xa294c8,hg:0x453d5c,hi:.72, fog:0xb094b4,sky:0xb69cc4,y:3, n:'Crepuscolo'},
-  {t:1.00,sun:0x8fa0dc,si:.45, hs:0x5a6aa0,hg:0x2c2842,hi:.55, fog:0x55608c,sky:0x6d7aa8,y:2, n:'Notte'}
+  {t:0.00,sun:0xffcaa0,si:1.15,hs:0xffd9c4,hg:0x6b5a76,hi:.75,fog:0xf3d3b4,sky:0xffd9bc,y:6,  n:'Dawn'},
+  {t:0.28,sun:0xfdf0e2,si:1.32,hs:0xcfe2f4,hg:0x8e8ea6,hi:.72,fog:0xd2e2f2,sky:0xb8d2ef,y:26,n:'Morning'},
+  {t:0.55,sun:0xfdf1dc,si:1.28,hs:0xd2e2f6,hg:0x8a8896,hi:.70, fog:0xd6e2f0,sky:0xc0d8ee,y:22,n:'Afternoon'},
+  {t:0.75,sun:0xffd6ac,si:1.42,hs:0xffd2c8,hg:0x6d6180,hi:.92, fog:0xf6c9a6,sky:0xfff2e0,y:8, n:'Sunset'},
+  {t:0.88,sun:0xc9a0d0,si:.85, hs:0xa294c8,hg:0x453d5c,hi:.72, fog:0xb094b4,sky:0xb69cc4,y:3, n:'Dusk'},
+  {t:1.00,sun:0x8fa0dc,si:.45, hs:0x5a6aa0,hg:0x2c2842,hi:.55, fog:0x55608c,sky:0x6d7aa8,y:2, n:'Night'}
 ];
 const cA=new THREE.Color(),cB=new THREE.Color();
 function applyDay(){
@@ -3527,7 +3527,7 @@ function applyDay(){
     u.sunDirection.value.set(Math.cos(sunH*.0175),Math.sin(sunH*.0175),.2).normalize();
   }
   const hh=Math.floor(G.time*24),mm=Math.floor((G.time*24%1)*60);
-  $clock.textContent=`Giorno ${G.day} · ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')} · ${a.n}`;
+  $clock.textContent=`Day ${G.day} · ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')} · ${a.n}`;
 }
 let sunH=9;
 const _acquaBlu=new THREE.Color(0x67b4d8).convertSRGBToLinear();
@@ -3550,20 +3550,20 @@ addEventListener('keydown',e=>{
 $pos.addEventListener('click',()=>{
   const t=$pos.textContent.replace(/\s+/g,' ').trim();
   if(navigator.clipboard)navigator.clipboard.writeText(t);
-  toast('coordinate copiate');
+  toast('coordinates copied');
 });
 function righello(){
   if(!righelloOn)return;
   const p=player.position;
   const dx=p.x-ARCO.x, dz=p.z-ARCO.z;
-  const bussola=['nord','nord-est','est','sud-est','sud','sud-ovest','ovest','nord-ovest'];
+  const bussola=['north','north-east','east','south-east','south','south-west','west','north-west'];
   // +z e' nord, +x e' est: la direzione si ricava dallo yaw della camera
   const dir=bussola[Math.round(((yaw%(Math.PI*2))+Math.PI*2)%(Math.PI*2)/(Math.PI/4))%8];
   $pos.innerHTML=
-    `x <b>${p.x.toFixed(1)}</b>   z <b>${p.z.toFixed(1)}</b>   <i>quota ${p.y.toFixed(2)}</i>\n`+
-    `dall'arco:  <b>${dx>=0?'+':''}${dx.toFixed(1)}</b> a est   `+
-    `<b>${dz>=0?'+':''}${dz.toFixed(1)}</b> a nord\n`+
-    `<i>stai guardando verso ${dir}</i>`;
+    `x <b>${p.x.toFixed(1)}</b>   z <b>${p.z.toFixed(1)}</b>   <i>height ${p.y.toFixed(2)}</i>\n`+
+    `from the arch:  <b>${dx>=0?'+':''}${dx.toFixed(1)}</b> east   `+
+    `<b>${dz>=0?'+':''}${dz.toFixed(1)}</b> north\n`+
+    `<i>facing ${dir}</i>`;
 }
 
 /* Il ponte mobile.
@@ -4116,7 +4116,7 @@ function updatePonteMobile(dt){
   const P=PMOB;
   switch(P.fase){
     case 'chiuso':                                   // traffico libero
-      P.t-=dt; if(P.t<=0){P.fase='allarme';say('カンカン — il ponte si apre',2600);}
+      P.t-=dt; if(P.t<=0){P.fase='allarme';say('カンカン — the bridge is opening',2600);}
       break;
     case 'allarme':                                  // prima si ferma il traffico
       P.sb=Math.min(1,P.sb+dt/1.6); if(P.sb>=1)P.fase='apre';
@@ -4178,7 +4178,7 @@ function updatePonteMobile(dt){
         g.userData.rotta=true;
         const dir=new THREE.Vector3(Math.sin(AUTO.g.rotation.y),0,Math.cos(AUTO.g.rotation.y));
         staccaPezzo(g,dir.multiplyScalar(Math.abs(AUTO.v)*.8).setY(4.5));
-        AUTO.v*=.55;toast('hai spezzato la sbarra');
+        AUTO.v*=.55;toast('you snapped the barrier');
       }
     }
   });
@@ -4205,14 +4205,14 @@ const SOTT={on:false};   // camera sotto il pelo dell'acqua
 function saliScendiAuto(){
   const p=player.position, a=AUTO.g.position;
   if(!GUIDA.su){
-    if(Math.hypot(p.x-a.x,p.z-a.z)>3.6){toast('avvicinati all\'auto');return;}
-    GUIDA.su=true;player.visible=false;toast('F per scendere · WASD per guidare');
+    if(Math.hypot(p.x-a.x,p.z-a.z)>3.6){toast('get closer to the car');return;}
+    GUIDA.su=true;player.visible=false;toast('F to get out · WASD to drive');
   }else{
     GUIDA.su=false;AUTO.v=0;
     // si scende di fianco, non dentro la carrozzeria
     const lat=new THREE.Vector3(Math.cos(AUTO.g.rotation.y),0,-Math.sin(AUTO.g.rotation.y));
     player.position.set(a.x+lat.x*2.2,a.y,a.z+lat.z*2.2);
-    player.visible=true;toast('sei sceso');
+    player.visible=true;toast('you are out');
   }
 }
 addEventListener('keydown',e=>{ if(e.code==='KeyF')saliScendiAuto(); });
@@ -4301,7 +4301,7 @@ function updateGame(dt){
   updatePonteMobile(dt);
   updateAuto(dt);
   G.time+=dt*G.speedDay;
-  if(G.time>=1){G.time=0;G.day++;toast('Giorno '+G.day);}
+  if(G.time>=1){G.time=0;G.day++;toast('Day '+G.day);}
   applyDay();
   /* Sott'acqua.
      Quando la camera scende sotto il pelo, la nebbia diventa densa e verde-blu
@@ -4337,20 +4337,20 @@ function updateGame(dt){
                               player.position.z-AUTO.g.position.z)<3.6;
   if(GUIDA.su){
     $act.style.display='block';
-    $act.textContent=`F — SCENDI  ·  ${GUIDA.kmh.toFixed(0)} km/h`;
+    $act.textContent=`F — GET OUT  ·  ${GUIDA.kmh.toFixed(0)} km/h`;
   }else if(vicinoAuto&&!G.talking){
     $act.style.display='block';
-    $act.textContent='F — GUIDA la kei car';
+    $act.textContent='F — DRIVE the kei car';
   }else if(nearNpc&&!G.talking){
     $act.style.display='block';
-    $act.textContent=(G.quest&&G.quest.to===nearNpc.id&&G.carrying)?`CONSEGNA a ${nearNpc.name}`:`PARLA con ${nearNpc.name}`;
+    $act.textContent=(G.quest&&G.quest.to===nearNpc.id&&G.carrying)?`DELIVER to ${nearNpc.name}`:`TALK to ${nearNpc.name}`;
   }else $act.style.display='none';
 
   const q=G.quest;
   if(q){
     if(q.kind==='consegna'){
       q.t-=dt;$barI.style.width=Math.max(0,q.t/q.max*100)+'%';
-      if(q.t<=0)failQuest('Il tempo è scaduto. ' + q.toName + ' capirà.');
+      if(q.t<=0)failQuest('Time is up. ' + q.toName + ' will understand.');
     }
     if(q.kind==='luogo'){
       if(player.position.distanceTo(PLACES[q.place].p)<3.4){
@@ -4365,7 +4365,7 @@ function updateGame(dt){
           scene.remove(m);G.pickups.splice(i,1);q.got++;
           setObj(`Raccogli petali: <b>${q.got}/${q.need}</b>`);
           if(q.got>=q.need){
-            toast('Petali raccolti · torna da '+q.giverName);
+            toast('Petals collected · go back to '+q.giverName);
             setObj(`Riporta i petali a <b>${q.giverName}</b>`);
             q.kind='ritorno';
           }
@@ -4373,7 +4373,7 @@ function updateGame(dt){
       }
     }
     if(q.kind==='ritorno'&&nearNpc&&nearNpc.id===q.giver&&!G.talking){
-      $act.textContent=`CONSEGNA a ${nearNpc.name}`;
+      $act.textContent=`DELIVER to ${nearNpc.name}`;
     }
   }
 }
@@ -4393,12 +4393,12 @@ $act.addEventListener('click',()=>{},{once:true});
 
 /* ============ apertura: la città dall'alto e la lore ============ */
 const LORE=[
- "Ogni città ha un punto da cui la si vede tutta.",
- "Da lassù i treni non sono treni: sono fili di luce che cuciono insieme i quartieri.",
- "Uno di quei fili passa per Sakuragaoka. Dieci case, un ciliegio, un passaggio a livello.",
- "Ci sei cresciuto. Poi sei partito, come fanno tutti.",
- "Stasera il locale delle 18:40 ti riporta indietro.",
- "Nessuno ti aspetta alla stazione. Ma qualcuno, qui, ti riconoscerà."
+ "Every town has a place you can see the whole of it from.",
+ "From up there the trains are not trains: they are threads of light stitching the districts together.",
+ "One of those threads runs through Sakuragaoka. Ten houses, a cherry tree, a level crossing.",
+ "You grew up there. Then you left, the way everyone does.",
+ "Tonight the 18:40 local is carrying you back.",
+ "Nobody is waiting for you at the station. But somebody here will recognise you."
 ];
 const introCSS=document.createElement('style');
 introCSS.textContent=`
@@ -4455,8 +4455,8 @@ function endCine(){
   CINE.on=false;cine.style.display='none';
   scene.fog.near=58;scene.fog.far=380;
   G.time=.78;applyDay();   // si comincia di sera, col sole gia' basso
-  setObj('Sei tornato. Trova qualcuno con cui parlare: sono <b>sei</b> in questo quartiere.');
-  say('Avvicinati a qualcuno e premi PARLA',4200);
+  setObj('You are back. Find someone to talk to — there are <b>six</b> of them here.');
+  say('Walk up to someone and press TALK',4200);
 }
 cine.querySelector('#skip').addEventListener('click',endCine);
 function updateCine(dt){
@@ -4745,7 +4745,7 @@ function tick(){
     let tx=px+dx, tz=pz+dz;
     if(railBlock&&Math.abs(tz)<SICURA){
       tz=Math.sign(pz)*SICURA;
-      if(Math.random()<.02)say('Aspetta, sta arrivando il treno',1600);
+      if(Math.random()<.02)say('Wait, a train is coming',1600);
     }
 
     // assi separati: contro un muro si scivola invece di incastrarsi
@@ -4875,7 +4875,7 @@ function tick(){
 
   // ciclo treno
   timer-=dt;
-  if(phase==='idle'&&timer<=0){phase='warn';timer=5.5;say('カンカンカン — le sbarre si abbassano',2600);}
+  if(phase==='idle'&&timer<=0){phase='warn';timer=5.5;say('カンカンカン — the barriers are coming down',2600);}
   if(phase==='warn'){gateT=Math.min(1,gateT+dt/3);
     if(timer<=0){phase='pass';train.visible=true;train.position.set(-290,0,0);trainSound(true);horn();}}
   if(phase==='pass'){
