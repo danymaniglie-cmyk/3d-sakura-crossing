@@ -2489,32 +2489,9 @@ const FIUME_G=(()=>{
       GROUND.addWall((x0+x1)/2,zb+k*.62,x1-x0,.5));
   });
 
-  /* Il ponte della via principale. L'asfalto e i marciapiedi sono piani lunghi
-     quattrocento metri che passavano sopra il canale sospesi sul niente: qui si
-     costruisce cio' che li regge, non la carreggiata, che c'e' gia'. */
-  const PB={sem:FIUME.sem+4.5, larg:23};
-  const solet=box(PB.larg,.62,PB.sem*2,M({map:cementoTex}),0,-.33,FIUME.z,g);
-  solet.receiveShadow=true;
-  for(let k=-1;k<=1;k+=2){                      // travi longitudinali sotto
-    [0,1].forEach(j=>box(1.0,.85,PB.sem*2,M({map:cementoTex}),
-      k*(3.2+j*4.4),-1.0,FIUME.z,g));
-  }
-  [-1,1].forEach(k=>{                           // pile in acqua, a cavalletto
-    const zp=FIUME.z+k*(FIUME.sem*.52);
-    box(PB.larg-3,1.0,2.2,M({map:cementoTex}),0,-1.8,zp,g);
-    [-1,1].forEach(j=>{
-      const pil=cyl(1.05,1.25,FIUME.fondo*-1+1.4,M({map:cementoTex}),
-        j*6.4,(FIUME.fondo+1.0)/2-.6,zp,10,g);
-      pil.receiveShadow=true;
-    });
-  });
-  [-1,1].forEach(k=>{                           // parapetti del ponte
-    const x=k*(PB.larg/2-.6);
-    box(.34,.95,PB.sem*2,M({map:cementoTex}),x,.60,FIUME.z,g);
-    box(.5,.14,PB.sem*2,C(0x8d95a0),x,1.14,FIUME.z,g);
-    GROUND.addWall(x,FIUME.z,.5,PB.sem*2);
-  });
-  // sotto il ponte l'acqua resta, ma niente schiuma: la si spezza sul varco
+  /* Il ponte stradale che stava qui e' sparito: la traversata del fiume ora e'
+     una campata del viadotto, non una seconda opera. Due ponti a un metro l'uno
+     dall'altro erano due carreggiate sovrapposte. */
   return {g,acqua,schiuma,onda,glint};
 })();
 
@@ -2535,7 +2512,7 @@ const VIA={w:8.4, top:EXPWY.y};
    salita sporgeva a ogni giunto e da lontano leggeva come una scalinata.
    lat sposta la sezione di fianco all'asse: cosi' la stessa funzione fa la
    soletta, l'asfalto e i due parapetti. */
-function nastro(st,lat,semi,yAlto,spess,mat,passoU){
+function nastro(st,lat,semi,yAlto,spess,mat,passoU,padre,orig){
   const pos=[],uv=[],idx=[];
   let acc=0;
   for(let i=0;i<st.length;i++){
@@ -2560,18 +2537,21 @@ function nastro(st,lat,semi,yAlto,spess,mat,passoU){
   g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
   g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
   g.setIndex(idx);g.computeVertexNormals();
+  // orig sposta la geometria in modo che quel punto diventi l'origine: serve
+  // per appendere un battente alla sua cerniera e poterlo far ruotare
+  if(orig)g.translate(-orig.x,-orig.y,-orig.z);
   const m=new THREE.Mesh(g,mat);m.castShadow=true;m.receiveShadow=true;
-  scene.add(m);return m;
+  (padre||scene).add(m);return m;
 }
 
-(function rampaEViadotto(){
+const BATTENTI=(function rampaEViadotto(){
   const B=Batch();
   const CONC=M({map:cementoTex}), ASF=M({map:asphalt}),
         PARA=M({map:cementoTex,color:0xd8d4cc}), STEEL=C(0x9aa3ab);
 
   /* Il tracciato e' scritto RISPETTO ALL'ARCO: ogni coppia dice "tanti metri a
      est, tanti a nord". Spostare tutto il ponte e' una riga sola. */
-  const SCOSTA={x:-22, z:84};        // <— sposta l'intero blocco del ponte
+  const SCOSTA={x:-22, z:27};        // <— sposta l'intero blocco del ponte
   const REL=[[22,-22],[22,-6],[22,10],[24,26],[36,40],[62,46],[90,31],
              [105,3],[109,-32],[111,-72],[112,-102]];
   const P=REL.map(([dx,dz])=>[ARCO.x+dx+SCOSTA.x, ARCO.z+dz+SCOSTA.z]);
@@ -2599,12 +2579,35 @@ function nastro(st,lat,semi,yAlto,spess,mat,passoU){
     return {x:p.x, y:quota(acc[i]), z:p.z, nx:-dz, nz:dx};
   });
 
-  nastro(st,0,VIA.w/2,      0,   .55,CONC,3);     // soletta
-  nastro(st,0,VIA.w/2-.5, .32,   .06,ASF ,3);     // manto
-  [-1,1].forEach(k=>{
-    nastro(st,k*(VIA.w/2-.16),.16,1.35,1.05,PARA,3);   // parapetto
-    nastro(st,k*(VIA.w/2-.16),.22,1.46,.11 ,STEEL,3);  // corrimano
-  });
+  /* La campata sul fiume e' mobile: il viadotto si interrompe sul canale e i due
+     tratti mancanti diventano battenti incernierati sulle sponde, che si alzano
+     e si richiudono come le sbarre del passaggio a livello. Non e' un secondo
+     ponte appoggiato li' — e' la stessa opera che si apre. */
+  const iSud=st.findIndex(s=>s.z>FIUME.z-FIUME.sem-1.5);
+  const iNord=st.findIndex(s=>s.z>FIUME.z+FIUME.sem+1.5);
+  const apribile=iSud>0 && iNord>iSud+6;
+  const mezzo=apribile?Math.floor((iSud+iNord)/2):0;
+
+  function sezioni(gruppo,lista,orig){
+    nastro(lista,0,VIA.w/2,      0,   .55,CONC,3,gruppo,orig);
+    nastro(lista,0,VIA.w/2-.5, .32,   .06,ASF ,3,gruppo,orig);
+    [-1,1].forEach(k=>{
+      nastro(lista,k*(VIA.w/2-.16),.16,1.35,1.05,PARA ,3,gruppo,orig);
+      nastro(lista,k*(VIA.w/2-.16),.22,1.46,.11 ,STEEL,3,gruppo,orig);
+    });
+  }
+
+  const battenti=[];
+  if(apribile){
+    sezioni(null, st.slice(0,iSud+1));          // rampa d'accesso da sud
+    sezioni(null, st.slice(iNord));             // e la prosecuzione a nord
+    [[iSud,mezzo+1,st[iSud], 1],[mezzo,iNord+1,st[iNord],-1]].forEach(([a,b,c,verso])=>{
+      const g=new THREE.Group();
+      g.position.set(c.x,c.y,c.z);scene.add(g);
+      sezioni(g, st.slice(a,b), c);
+      battenti.push({g,verso});
+    });
+  } else sezioni(null, st);
 
   // pile e rilevato: questi restano pezzi distinti, perche' pezzi distinti sono
   for(let i=6;i<N;i+=9){
@@ -2622,6 +2625,7 @@ function nastro(st,lat,semi,yAlto,spess,mat,passoU){
     }
   }
   B.flush(scene,true,true);
+  return battenti;
 })();
 
 /* La corrente: due lastre che scorrono a velocita' diverse nello stesso verso,
@@ -3123,7 +3127,35 @@ function righello(){
     `<i>stai guardando verso ${dir}</i>`;
 }
 
+/* Il ponte mobile.
+   Stessa logica delle sbarre: sta chiuso quasi sempre, si apre, resta aperto il
+   tempo di far passare qualcosa, si richiude. L'angolo e' uno solo e i due
+   battenti lo usano con segno opposto, cosi' non possono disallinearsi.
+   Ruotano attorno all'asse X perche' li' la carreggiata corre lungo z: la
+   cerniera e' la sponda, e il capo libero e' quello che si alza. */
+const PMOB={fase:'chiuso', t:26, ap:0, MAX:1.12};
+function updatePonteMobile(dt){
+  if(!BATTENTI.length)return;
+  if(PMOB.fase==='chiuso'){
+    PMOB.t-=dt;
+    if(PMOB.t<=0){PMOB.fase='apre';say('il ponte si apre',2400);}
+  } else if(PMOB.fase==='apre'){
+    PMOB.ap=Math.min(1,PMOB.ap+dt/4.5);
+    if(PMOB.ap>=1){PMOB.fase='aperto';PMOB.t=9;}
+  } else if(PMOB.fase==='aperto'){
+    PMOB.t-=dt;
+    if(PMOB.t<=0)PMOB.fase='chiude';
+  } else {
+    PMOB.ap=Math.max(0,PMOB.ap-dt/4.5);
+    if(PMOB.ap<=0){PMOB.fase='chiuso';PMOB.t=26+Math.random()*16;}
+  }
+  // raccordo dolce agli estremi: un battente non parte e non si ferma di scatto
+  const e=PMOB.ap*PMOB.ap*(3-2*PMOB.ap);
+  BATTENTI.forEach(b=>{b.g.rotation.x=-b.verso*e*PMOB.MAX;});
+}
+
 function updateGame(dt){
+  updatePonteMobile(dt);
   G.time+=dt*G.speedDay;
   if(G.time>=1){G.time=0;G.day++;toast('Giorno '+G.day);}
   applyDay();
