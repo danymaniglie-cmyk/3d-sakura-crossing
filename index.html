@@ -2534,8 +2534,11 @@ const VIA={w:8.4, top:EXPWY.y};
         STEEL=C(0x9aa3ab);
 
   // Tracciato in pianta: attacco a terra davanti all'arco, curva larga, rettilineo.
-  // l'attacco sta a sud dell'arco, cioe' davanti a chi risale la via principale
-  const P=[[11,26],[12,14],[13,-2],[16,-16],[24,-30],[38,-42],[56,-50],[76,-56],[96,-60],[120,-62]];
+  /* Attacca sulla mezzeria della via principale, davanti all'arco, e sale
+     sopra la carreggiata: non di fianco, dove finiva schiacciato fra le case e
+     spariva dentro il terreno. Da li' corre in quota sopra la strada, piega a
+     levante e va diritto sulla sopraelevata. */
+  const P=[[0,26],[0,10],[1,-6],[6,-22],[18,-36],[36,-46],[56,-53],[78,-58],[100,-61],[124,-62]];
   const curva=new THREE.CatmullRomCurve3(
     P.map(p=>new THREE.Vector3(p[0],0,p[1])),false,'catmullrom',.35);
 
@@ -2545,10 +2548,14 @@ const VIA={w:8.4, top:EXPWY.y};
   const acc=[0];
   for(let i=1;i<=N;i++)acc.push(acc[i-1]+Math.hypot(pt[i].x-pt[i-1].x,pt[i].z-pt[i-1].z));
   const LTOT=acc[N];
-  const SALITA=28;                 // primi metri ancora a terra, davanti all'arco
+  const SALITA=10;                 // primi metri ancora a terra, davanti all'arco
+  /* Pendenza costante, non una curva a esse. Il raccordo dolce sembrava
+     elegante ma teneva l'impalcato a ventisei centimetri per sessanta metri:
+     in mezzo alla carreggiata leggeva come un cordolo, non come un ponte.
+     Solo gli ultimi metri si addolciscono, per arrivare in piano sull'altro. */
   const quota=s=>{
-    const t=Math.max(0,Math.min(1,(s-SALITA)/(LTOT-SALITA-30)));
-    return VIA.top*t*t*(3-2*t);    // raccordo dolce in partenza e in arrivo
+    const t=Math.max(0,Math.min(1,(s-SALITA)/(LTOT-SALITA-26)));
+    return VIA.top*(t<.86 ? t : .86+(t-.86)*(1-(t-.86)/.28)/.14*.14+ (t-.86)*.5);
   };
   pt.forEach((p,i)=>p.y=quota(acc[i]));
 
