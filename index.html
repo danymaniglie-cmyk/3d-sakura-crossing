@@ -1859,7 +1859,8 @@ for(let i=0;i<26;i++){
    sua linea, invece di essere un parallelepipedo con un altro sopra. */
 const AUTO=(function(){
   const ruote=[], sterzanti=[];
-  const g=new THREE.Group();g.position.set(-3.4,0,-19);g.rotation.y=0;scene.add(g);
+  const g=new THREE.Group();g.position.set(-3.4,0,-19);g.rotation.y=0;
+  g.userData.mobile=true;scene.add(g);
 
   const LUNG=3.35, LARG=1.48, SMUSSO=.075;
   const CARR=C(0xdfe6ea);   // lamiera: tinta piena, la texture di cemento
@@ -1976,7 +1977,7 @@ const AUTO=(function(){
 })();
 
 /* ============ treno ============ */
-const train=new THREE.Group();scene.add(train);
+const train=new THREE.Group();train.userData.mobile=true;scene.add(train);
 const CAR=19.2;
 const sideM=M({map:trainSide,emissive:0x3a2a18}), endM=M({map:trainEnd,emissive:0x2a1e12});
 const headlights=[];
@@ -2311,6 +2312,7 @@ const npcs=[];
 function person(x,z,dir,look,info){
   const h=makeHuman(look);
   const g=h.root;g.position.set(x,0,z);scene.add(g);
+  g.userData.mobile=true;
   const n=Object.assign({g,h,legL:h.legL,legR:h.legR,armL:h.armL,armR:h.armR,
     dir,speed:1.0+Math.random()*.6,ph:Math.random()*6,x,home:z,idle:false},info||{});
   npcs.push(n);return n;
@@ -2346,7 +2348,8 @@ person(-10.6,3.4,1,{skin:0xeed3b6,skinCss:'#eed3b6',eye:'#3f4a5f',top:0x2f4f7a,b
 
 /* gatto sul muretto */
 const cat=(()=>{
-  const g=new THREE.Group();g.position.set(-9.9,1.75,-6.2);g.rotation.y=1.2;scene.add(g);
+  const g=new THREE.Group();g.position.set(-9.9,1.75,-6.2);g.rotation.y=1.2;
+  g.userData.mobile=true;scene.add(g);
   const b=new THREE.Mesh(new THREE.SphereGeometry(.28,12,10),C(0xf1e7dc));
   b.scale.set(1.5,.9,.9);b.castShadow=true;g.add(b);
   const h=new THREE.Mesh(new THREE.SphereGeometry(.19,12,10),C(0xf1e7dc));
@@ -2365,7 +2368,7 @@ for(let i=0;i<7;i++){
   // niente ombre: volando a 15 m proiettavano scarabocchi neri su tutto l'asfalto
   [-1,1].forEach(k=>{const wpart=box(.5,.05,.14,C(0x4a4152),k*.28,0,0,b);
     wpart.rotation.z=k*.4;wpart.castShadow=false;wpart.receiveShadow=false;});
-  b.userData={r:16+Math.random()*20,a:Math.random()*6.3,y:11+Math.random()*7,sp:.16+Math.random()*.18,f:Math.random()*6};
+  b.userData={mobile:true,r:16+Math.random()*20,a:Math.random()*6.3,y:11+Math.random()*7,sp:.16+Math.random()*.18,f:Math.random()*6};
   scene.add(b);birds.push(b);
 }
 /* corvi appollaiati sui fili */
@@ -2825,7 +2828,8 @@ const PONTE_M=(function rampaEViadotto(){
     });
     const px=c.x+VIA.w/2+.2, py=c.y+.5;
     cyl(.13,.15,2.6,STEEL,px,py+1.3,c.z+verso*3.2,8);        // palo della sbarra
-    const g=new THREE.Group();g.position.set(px,py+2.1,c.z+verso*3.2);scene.add(g);
+    const g=new THREE.Group();g.position.set(px,py+2.1,c.z+verso*3.2);
+    g.userData.mobile=true;scene.add(g);
     for(let i=0;i<5;i++)                                      // asta a fasce
       box(VIA.w/5*.98,.16,.16,C(i%2?0xf2eee8:0xd8443c),
           -VIA.w/10-i*(VIA.w/5),0,0,g);
@@ -2847,7 +2851,7 @@ const PONTE_M=(function rampaEViadotto(){
     sezioni(null, st.slice(iNord));             // e la prosecuzione a nord
     [[iSud,mezzo+1,st[iSud], 1],[mezzo,iNord+1,st[iNord],-1]].forEach(([a,b,c,verso])=>{
       const g=new THREE.Group();
-      g.position.set(c.x,c.y,c.z);scene.add(g);
+      g.position.set(c.x,c.y,c.z);g.userData.mobile=true;scene.add(g);
       sezioni(g, st.slice(a,b), c);
       battenti.push({g,verso});
     });
@@ -2906,6 +2910,38 @@ const PONTE_M=(function rampaEViadotto(){
     }
   }
   B.flush(scene,true,true);
+
+  /* Sgombero della sede stradale. Il viadotto e' stato tracciato dopo che il
+     quartiere esisteva, quindi passa dentro qualche palo e qualche albero: da
+     fuori si vedono spuntare dall'asfalto, e da dentro fermano chi ci cammina.
+     Fra un palo e una carreggiata percorribile vince la carreggiata, quindi
+     cio' che sta in piedi sull'impalcato si toglie di mezzo. */
+  (function sgombera(){
+    /* Sgombero della sede stradale, ma SOLO lungo il viadotto. La prima
+       versione guardava se un piano qualunque tagliava l'oggetto, e cosi'
+       cancellava tutto cio' che sta su un marciapiede — quota 0.36 — cioe'
+       mezzo quartiere: cinquecentoquindici pezzi spariti. Qui si confronta
+       ogni oggetto con le stazioni del tracciato, e solo con quelle. */
+    const bb=new THREE.Box3(), v=new THREE.Vector3();
+    let tolti=0;
+    scene.traverse(o=>{
+      if(!o.isMesh||!o.visible||o.userData.merged)return;
+      for(let q=o;q;q=q.parent)if(q.userData&&q.userData.mobile)return;
+      o.updateMatrixWorld(true);bb.setFromObject(o);bb.getSize(v);
+      if(v.x>9||v.z>9||v.y<.6)return;
+      const cx=(bb.min.x+bb.max.x)/2, cz=(bb.min.z+bb.max.z)/2;
+      for(let k=0;k<st.length;k++){
+        const c=st[k];
+        if(Math.abs(c.x-cx)>VIA.w/2+1.4||Math.abs(c.z-cz)>VIA.w/2+1.4)continue;
+        // l'impalcato passa fra la base e la cima dell'oggetto: lo attraversa.
+        // Si guardano TUTTE le stazioni vicine: uscendo alla prima si mancava
+        // proprio quella alla quota giusta, e il palo restava in mezzo.
+        if(c.y>bb.min.y-.5&&c.y<bb.max.y-.4){o.visible=false;tolti++;break;}
+      }
+    });
+    console.info('sgomberati dalla sede del viadotto: '+tolti);
+  })();
+
   return {battenti,sbarre,luci};
 })();
 
@@ -2953,6 +2989,49 @@ function updateFiume(t){
   }
   gp.needsUpdate=true;
 }
+
+/* ============================================================
+   SOLIDIFICAZIONE AUTOMATICA
+   Finora era solido solo cio' che qualcuno si era ricordato di registrare a
+   mano, e quindi la meta' degli oggetti si attraversava. Qui si passa in
+   rassegna la scena a costruzione finita e si registra come ostacolo tutto cio'
+   che ha un ingombro da ostacolo — con la cima e la base prese dal suo
+   contorno, cosi' si continua a passare sopra i muretti e sotto i ponti.
+
+   Si salta: cio' che si muove (marcato mobile), cio' che sta sul layer 1
+   (sprite, punti, cielo, acqua), e cio' che e' troppo grande o troppo piatto —
+   strade, prati e impalcati sono superfici da calpestare, non muri.
+   ============================================================ */
+(function solidificaTutto(){
+  const bb=new THREE.Box3(), v=new THREE.Vector3();
+  let messi=0, saltati=0;
+  const mobile=o=>{ for(let p=o;p;p=p.parent) if(p.userData&&p.userData.mobile)return true; return false; };
+  scene.traverse(o=>{
+    if(!o.isMesh||!o.visible){saltati++;return;}
+    if(o.layers.mask&2){saltati++;return;}              // layer 1: roba senza corpo
+    if(mobile(o)){saltati++;return;}
+    o.updateMatrixWorld(true);
+    bb.setFromObject(o); bb.getSize(v);
+    // troppo piatto per fermare, o troppo esteso per essere un ostacolo
+    if(v.y<.45||v.x<.22||v.z<.22){saltati++;return;}
+    if(v.x>14||v.z>14){saltati++;return;}
+    if(bb.min.y>9.4){saltati++;return;}                 // sopra la sopraelevata
+    /* Se un impalcato attraversa l'oggetto a mezza altezza, l'oggetto non si
+       registra: il viadotto passa dentro qualche albero e qualche palo, e fra
+       una pianta e una carreggiata percorribile deve vincere la carreggiata. */
+    const cx=(bb.min.x+bb.max.x)/2, cz=(bb.min.z+bb.max.z)/2;
+    const piano=GROUND.heightAt(cx,cz,bb.max.y);
+    /* La soglia si lega all'altezza dell'oggetto: un piano vicino alla base e'
+       semplicemente il suolo su cui l'oggetto poggia — col valore fisso saltava
+       anche il distributore, perche' il marciapiede su cui sta cadeva dentro il
+       suo ingombro. Deve trattarsi di un impalcato che lo taglia a meta'. */
+    if(piano>bb.min.y+Math.max(.7,v.y*.35)&&piano<bb.max.y-.1){saltati++;return;}
+    GROUND.addWall((bb.min.x+bb.max.x)/2,(bb.min.z+bb.max.z)/2,
+                   v.x*.86,v.z*.86, bb.max.y, bb.min.y);
+    messi++;
+  });
+  console.info(`solidi ${messi} oggetti, saltati ${saltati}`);
+})();
 
 function updateLife(dt,t){
   _dtFiume=dt;updateFiume(t);
@@ -3578,7 +3657,7 @@ function traghetto(col,nome){
     h.userData0={z:q[1]};g.add(h.root);gente.push(h);
   });
 
-  g.visible=false;scene.add(g);
+  g.visible=false;g.userData.mobile=true;scene.add(g);
   g.userData.gente=gente;
   return g;
 }
@@ -3615,7 +3694,7 @@ function barchetta(tipo,col){
     g.userData.gente=[pesc];
     cyl(.02,.02,2.6,C(0x8a7a5c),.3,.9,-.6,4,g).rotation.z=-.6;   // canna da pesca
   }
-  scene.add(g);return g;
+  g.userData.mobile=true;scene.add(g);return g;
 }
 
 const BARCHETTE=(()=>{
@@ -3696,7 +3775,7 @@ const SASSI=(()=>{
   const vivi=[], liberi=[];
   for(let i=0;i<26;i++){
     const m=new THREE.Mesh(geo[i%3],mat);
-    m.castShadow=true;m.visible=false;scene.add(m);liberi.push(m);
+    m.castShadow=true;m.visible=false;m.userData.mobile=true;scene.add(m);liberi.push(m);
   }
   // cerchi dello spruzzo
   const onde=[];
@@ -3826,13 +3905,49 @@ const FOGNA={x:3.2, zTombino:12, zFiume:FIUME.z-FIUME.sem+1.5, y:-4.2, semi:1.9,
     box(.8,.14,.8,C(0x8f8a84),sx,y,sz,g);
     GROUND.addPlat(sx,sz,.8,.8,y+.07);
   }
-  // bocca del tombino a livello strada, aperta
-  const anello=new THREE.Mesh(new THREE.TorusGeometry(1.0,.14,8,18),C(0x6e6a66));
-  anello.rotation.x=Math.PI/2;anello.position.set(FOGNA.x,.06,pz);g.add(anello);
-  GROUND.addPlat(FOGNA.x,pz,1.6,1.6,.02);
-  // il coperchio sta appoggiato di fianco
-  const cop=new THREE.Mesh(new THREE.CylinderGeometry(.98,.98,.1,18),C(0x7d7684));
-  cop.position.set(FOGNA.x+1.9,.36,pz+.4);cop.rotation.z=1.15;cop.castShadow=true;g.add(cop);
+  /* Il tombino. Prima erano due anelli bianchi appoggiati sull'asfalto: il
+     disegno del coperchio e' quello che lo fa riconoscere, quindi si dipinge —
+     cerchi concentrici, reticolo a losanghe, bulloni e la scritta. */
+  const copTex=CT(256,256,(x,w,h)=>{
+    const c=w/2;
+    x.fillStyle='#6f6b66';x.beginPath();x.arc(c,c,c-2,0,7);x.fill();
+    x.strokeStyle='#575350';x.lineWidth=5;
+    [c-10,c-26,c-40].forEach(r=>{x.beginPath();x.arc(c,c,r,0,7);x.stroke();});
+    // reticolo a losanghe nella corona
+    x.lineWidth=4;x.strokeStyle='#524e4a';
+    for(let a=0;a<24;a++){
+      const t=a/24*6.283;
+      x.beginPath();
+      x.moveTo(c+Math.cos(t)*(c-40),c+Math.sin(t)*(c-40));
+      x.lineTo(c+Math.cos(t)*(c-12),c+Math.sin(t)*(c-12));x.stroke();
+    }
+    for(let r=c-36;r<c-14;r+=9){x.beginPath();x.arc(c,c,r,0,7);x.stroke();}
+    // bulloni
+    x.fillStyle='#454240';
+    for(let a=0;a<6;a++){const t=a/6*6.283+.5;
+      x.beginPath();x.arc(c+Math.cos(t)*(c-8),c+Math.sin(t)*(c-8),5,0,7);x.fill();}
+    // disco centrale con la scritta
+    x.fillStyle='#5e5a56';x.beginPath();x.arc(c,c,c-58,0,7);x.fill();
+    x.fillStyle='#8d8884';x.font='bold 34px "Hiragino Sans",sans-serif';
+    x.textAlign='center';x.fillText('雨水',c,c+12);
+    noise(x,w,h,300,'rgba(60,58,54,.5)',1,3);
+  });
+  // collarino incassato: e' l'ombra dello scalino a far leggere il buco
+  const collare=new THREE.Mesh(new THREE.TorusGeometry(1.02,.16,8,22),C(0x55524e));
+  collare.rotation.x=Math.PI/2;collare.position.set(FOGNA.x,-.03,pz);g.add(collare);
+  const gola=new THREE.Mesh(new THREE.CylinderGeometry(.92,.92,.5,20,1,true),C(0x2e2b28));
+  gola.position.set(FOGNA.x,-.26,pz);gola.material.side=THREE.BackSide;g.add(gola);
+  // pioli nel pozzo, visibili dall'alto
+  for(let i=0;i<5;i++)
+    box(.5,.07,.07,C(0x8f8a84),FOGNA.x-.55,-.5-i*.5,pz,g);
+  GROUND.addPlat(FOGNA.x,pz,1.9,1.9,.02);
+
+  // il coperchio sollevato, appoggiato di taglio contro il cordolo
+  const cop=new THREE.Mesh(new THREE.CylinderGeometry(1.0,1.0,.09,24),
+    [C(0x6f6b66),M({map:copTex}),M({map:copTex})]);
+  cop.position.set(FOGNA.x+1.75,.62,pz+.5);
+  cop.rotation.set(0,.4,1.32);cop.castShadow=true;g.add(cop);
+  GROUND.addWall(FOGNA.x+1.75,pz+.5,1.2,1.2,1.3,-.2);
 })();
 
 /* Pesci./* Pesci.
@@ -3856,7 +3971,7 @@ const PESCI=(()=>{
       p2.rotation.z=k*Math.PI/2;p2.scale.set(.3,1,1);p2.position.set(k*.09,0,.02);g.add(p2);
     });
     g.layers.enable(1);                                  // niente contorno: sono minuti
-    scene.add(g);
+    g.userData.mobile=true;scene.add(g);
     l.push({g,coda,cx:rnd(FIUME.da+40,FIUME.a-40),cz:FIUME.z+rnd(-14,14),
             rx:rnd(6,22),rz:rnd(3,9),sp:rnd(.25,.6)*(Math.random()<.5?1:-1),
             ph:rnd(0,6.3),prof:rnd(.5,2.2)});
