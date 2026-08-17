@@ -31,6 +31,16 @@
     color:#4a4358;font-size:12px;font-weight:800;letter-spacing:.08em;display:flex;align-items:center;justify-content:center;
     pointer-events:auto;backdrop-filter:blur(3px)}
   #run.on{background:rgba(226,116,157,.9);color:#fff}
+  /* Sott'acqua CORRI non serve a niente e manca invece il modo di scendere:
+     al suo posto compare GIU', nello stesso punto sotto il pollice. */
+  #giu{position:absolute;bottom:max(26px,env(safe-area-inset-bottom));
+    right:max(108px,calc(env(safe-area-inset-right) + 86px));
+    width:74px;height:74px;border-radius:50%;background:rgba(255,255,255,.26);
+    border:2px solid rgba(255,255,255,.55);color:#2f5a72;font-size:12px;font-weight:800;
+    letter-spacing:.08em;display:none;align-items:center;justify-content:center;
+    pointer-events:auto;backdrop-filter:blur(3px)}
+  #giu.on{background:rgba(70,150,190,.92);color:#fff}
+  #giu.mostra{display:flex}
   #view{position:absolute;bottom:max(112px,env(safe-area-inset-bottom));right:max(30px,env(safe-area-inset-right));
     width:58px;height:34px;border-radius:999px;background:rgba(255,255,255,.26);border:2px solid rgba(255,255,255,.55);
     color:#4a4358;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;pointer-events:auto}
@@ -78,6 +88,7 @@
   <div class="pad" id="pad"><div class="nub" id="nub"></div></div>
   <div id="view">1ª / 3ª</div>
   <div id="run">CORRI</div>
+  <div id="giu">GIÙ</div>
 </div>
 <div id="veil">
   <div class="jp">ふみきり</div>
@@ -3128,6 +3139,13 @@ function padEnd(){move.x=move.y=0;nub.style.transform='';padId=null;}
 pad.addEventListener('touchstart',e=>{e.preventDefault();padId=e.changedTouches[0].identifier;padSet(e.changedTouches[0]);},{passive:false});
 pad.addEventListener('touchmove',e=>{e.preventDefault();for(const t of e.changedTouches)if(t.identifier===padId)padSet(t);},{passive:false});
 ['touchend','touchcancel'].forEach(v=>pad.addEventListener(v,e=>{for(const t of e.changedTouches)if(t.identifier===padId)padEnd();}));
+/* GIU' sostituisce CORRI mentre si nuota: e' l'unico comando che serve li',
+   e sul telefono un tasto che non c'e' e' un comando che non esiste. */
+const giuBtn=document.getElementById('giu');
+['pointerdown','touchstart'].forEach(e=>giuBtn.addEventListener(e,ev=>{
+  ev.preventDefault();keys['KeyC']=true;giuBtn.classList.add('on');},{passive:false}));
+['pointerup','pointercancel','touchend'].forEach(e=>giuBtn.addEventListener(e,ev=>{
+  ev.preventDefault();keys['KeyC']=false;giuBtn.classList.remove('on');},{passive:false}));
 const runBtn=document.getElementById('run');
 runBtn.addEventListener('touchstart',e=>{e.preventDefault();running=true;runBtn.classList.add('on');},{passive:false});
 ['touchend','touchcancel'].forEach(v=>runBtn.addEventListener(v,()=>{running=false;runBtn.classList.remove('on');}));
@@ -3963,9 +3981,11 @@ const FOGNA={x:3.2, zTombino:12, zFiume:FIUME.z-FIUME.sem+1.5, y:-4.2, semi:1.9,
   });
   // collarino incassato: e' l'ombra dello scalino a far leggere il buco
   const collare=new THREE.Mesh(new THREE.TorusGeometry(1.02,.16,8,22),C(0x55524e));
-  collare.rotation.x=Math.PI/2;collare.position.set(FOGNA.x,-.03,pz);g.add(collare);
+  collare.rotation.x=Math.PI/2;collare.position.set(FOGNA.x,-.03,pz);
+  collare.castShadow=false;g.add(collare);
   const gola=new THREE.Mesh(new THREE.CylinderGeometry(.92,.92,.5,20,1,true),C(0x2e2b28));
-  gola.position.set(FOGNA.x,-.26,pz);gola.material.side=THREE.BackSide;g.add(gola);
+  gola.position.set(FOGNA.x,-.26,pz);gola.material=gola.material.clone();
+  gola.material.side=THREE.BackSide;gola.castShadow=false;g.add(gola);
   // pioli nel pozzo, visibili dall'alto
   for(let i=0;i<5;i++)
     box(.5,.07,.07,C(0x8f8a84),FOGNA.x-.55,-.5-i*.5,pz,g);
@@ -3984,7 +4004,10 @@ const FOGNA={x:3.2, zTombino:12, zFiume:FIUME.z-FIUME.sem+1.5, y:-4.2, semi:1.9,
       C([0x8d8578,0x9c948a,0x7a736a,0xa8a096][i%4]));
     q.position.set(mucchioX+Math.cos(a)*r,.02+s2*.4,mucchioZ+Math.sin(a)*r);
     q.rotation.set(Math.random()*3,Math.random()*3,Math.random()*3);
-    q.castShadow=true;g.add(q);
+    /* Niente ombra dai ciottoli: sono grandi cinque centimetri e la mappa
+       d'ombra non li risolve, quindi da lontano le loro ombre si fondono in una
+       macchia poligonale scura attorno al tombino. */
+    q.castShadow=false;g.add(q);
   }
 
   // il coperchio sollevato, appoggiato di taglio contro il cordolo
@@ -4283,6 +4306,7 @@ function updateGame(dt){
     }
     SOTT.on=giu;
   }
+  giuBtn.classList.toggle('mostra',NUOTO.on);
   righello();
 
   // azione vicina
@@ -4698,10 +4722,14 @@ function tick(){
     const px=player.position.x, pz=player.position.z, py=player.position.y;
 
     // il passaggio a livello si chiude davvero quando arriva il treno
-    const railBlock=(phase!=='idle')&&Math.abs(pz)>=RAIL_HALF-1.2;
+    /* Distanza di sicurezza dal binario: 1.2 metri dal bordo teneva lontani
+       cinque metri dall'asse, cioe' troppo per vedere il treno passare.
+       A 3.6 si resta appena dietro le sbarre, che e' dove ci si mette davvero. */
+    const SICURA=RAIL_HALF-3.6;
+    const railBlock=(phase!=='idle')&&Math.abs(pz)>=SICURA;
     let tx=px+dx, tz=pz+dz;
-    if(railBlock&&Math.abs(tz)<RAIL_HALF-1.2){
-      tz=Math.sign(pz)*(RAIL_HALF-1.2);
+    if(railBlock&&Math.abs(tz)<SICURA){
+      tz=Math.sign(pz)*SICURA;
       if(Math.random()<.02)say('Aspetta, sta arrivando il treno',1600);
     }
 
@@ -4742,19 +4770,43 @@ function tick(){
       if(player.position.y<fondale){player.position.y=fondale;NUOTO.vy=0;}
       if(player.position.y>pelo){player.position.y=pelo;NUOTO.vy=Math.min(0,NUOTO.vy);}
       NUOTO.giu=pelo-player.position.y;                 // quanto si e' immersi
-      /* Nuotata vera: il corpo si stende in orizzontale e le braccia girano.
-         Con l'inclinazione di mezzo radiante di prima si restava sostanzialmente
-         in piedi dentro l'acqua, che e' la cosa che si vedeva sbagliata. */
+      /* Tre posture, scelte da quanto si e' immersi e da dove si sta andando.
+         Una sola andatura non basta: chi galleggia sta dritto e sculla, chi e'
+         sotto sta disteso, chi risale allunga le braccia verso l'alto. */
       const b=clock.elapsedTime*2.9;
-      playerH.hips.rotation.x=1.36+Math.sin(b)*.06;
-      playerH.headP.rotation.x=-.85;
-      playerH.armL.rotation.x=-1.6+Math.sin(b)*2.5;
-      playerH.armR.rotation.x=-1.6+Math.sin(b+Math.PI)*2.5;
-      playerH.elbL.rotation.x=-.5;playerH.elbR.rotation.x=-.5;
-      playerH.legL.rotation.x=Math.sin(b*1.5)*.35;
-      playerH.legR.rotation.x=-Math.sin(b*1.5)*.35;
-      playerH.kneeL.rotation.x=-Math.abs(Math.sin(b*1.5))*.5;
-      playerH.kneeR.rotation.x=-Math.abs(Math.cos(b*1.5))*.5;
+      const sotto=Math.min(1,Math.max(0,(NUOTO.giu-.35)/.9));   // 0 a galla, 1 sotto
+      const sale=Math.min(1,Math.max(0,NUOTO.vy/1.6));          // quanto sta salendo
+      // busto: verticale a galla, orizzontale in immersione
+      playerH.hips.rotation.x=(.12+Math.sin(b*.6)*.05)*(1-sotto)+ (1.36+Math.sin(b)*.06)*sotto;
+      playerH.headP.rotation.x=-.12*(1-sotto)-.85*sotto;
+      if(sale>.3){
+        // risalita: bracciate verso l'alto, gambe che spingono insieme
+        playerH.armL.rotation.x=-2.5+Math.sin(b*1.4)*.7;
+        playerH.armR.rotation.x=-2.5+Math.sin(b*1.4+Math.PI)*.7;
+        playerH.elbL.rotation.x=-.35;playerH.elbR.rotation.x=-.35;
+        const rana=Math.sin(b*1.4);
+        playerH.legL.rotation.x=rana*.5;playerH.legR.rotation.x=rana*.5;
+        playerH.kneeL.rotation.x=-Math.abs(rana)*.9;
+        playerH.kneeR.rotation.x=-Math.abs(rana)*.9;
+      }else if(sotto>.5){
+        // in immersione: crawl, braccia che girano alternate
+        playerH.armL.rotation.x=-1.6+Math.sin(b)*2.5;
+        playerH.armR.rotation.x=-1.6+Math.sin(b+Math.PI)*2.5;
+        playerH.elbL.rotation.x=-.5;playerH.elbR.rotation.x=-.5;
+        playerH.legL.rotation.x=Math.sin(b*1.5)*.35;
+        playerH.legR.rotation.x=-Math.sin(b*1.5)*.35;
+        playerH.kneeL.rotation.x=-Math.abs(Math.sin(b*1.5))*.5;
+        playerH.kneeR.rotation.x=-Math.abs(Math.cos(b*1.5))*.5;
+      }else{
+        // a galla: si scullano le braccia di lato e si pedala piano
+        playerH.armL.rotation.x=-.35+Math.sin(b*1.1)*.5;
+        playerH.armR.rotation.x=-.35+Math.sin(b*1.1+2.1)*.5;
+        playerH.elbL.rotation.x=-1.05;playerH.elbR.rotation.x=-1.05;
+        playerH.legL.rotation.x=Math.sin(b*.9)*.45;
+        playerH.legR.rotation.x=-Math.sin(b*.9)*.45;
+        playerH.kneeL.rotation.x=-Math.abs(Math.sin(b*.9))*.8;
+        playerH.kneeR.rotation.x=-Math.abs(Math.cos(b*.9))*.8;
+      }
     }else{
       /* Fuori dall'acqua: se sotto non c'e' appoggio si CADE con la gravita'.
          Prima la quota inseguiva dolcemente il suolo, quindi buttandosi dal

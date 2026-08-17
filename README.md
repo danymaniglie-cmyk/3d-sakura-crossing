@@ -40,6 +40,9 @@ Double-clicking the file will not work: `file://` rules block loading
 | `M` | coordinate readout |
 | `Space` / `C` | swim up / dive, when you are in the water |
 
+On a phone the joystick, the run button and a dive button that appears while
+swimming cover all of it.
+
 ## What's in there
 
 - A main street with raised pavements, kerbs, tactile paving and drains
@@ -119,6 +122,17 @@ MSAA, smaller shadow maps. The look survives; the sharpness is what gives.
 After that, in no particular order: districts with curving streets, interiors
 you can walk into, traffic on the expressway deck, sound beyond the crossing
 bell.
+
+## Project status
+
+**Active development by the original author ends here.** The project is
+finished as a one-person effort — not abandoned, not broken, just at the point
+where one person has taken it as far as one person reasonably can.
+
+**The repository stays open and the community is very welcome to carry it on.**
+Fork it, send a pull request, or build your own version on top. See
+[MAINTENANCE.md](MAINTENANCE.md) for what you are inheriting, what to read
+first, and the ideas that are mapped but not built.
 
 ## Contributing
 
