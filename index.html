@@ -708,7 +708,10 @@ const groundTex=grass.clone();groundTex.repeat.set(110,110);
    cemento verticali e acqua parecchio sotto il piano stradale. Perche' si veda
    il fondo, il prato non puo' essere un piano pieno — va bucato qui, alla
    nascita, altrimenti coprirebbe tutto quello che sta sotto lo zero. */
-const FIUME={z:66, sem:22, y:-1.55, fondo:-3.4, da:-220, a:220};
+/* Fondale a sette metri: con un metro e ottanta d'acqua non ci si immergeva
+   davvero — si toccava il fondo prima di essere sott'acqua. Per nuotare in
+   orizzontale e vedere il fondale sotto di se' serve profondita' vera. */
+const FIUME={z:66, sem:22, y:-1.55, fondo:-7.0, da:-220, a:220};
 /* Affluenti: canali piu' stretti che scendono dai campi a nord e sfociano nel
    fiume. Corrono lungo z, quindi si descrivono con l'ascissa invece che con la
    quota. Sono il punto di partenza per allargare la rete d'acqua. */
@@ -752,7 +755,9 @@ const sulPonte=z=>z>RIVA_S&&z<RIVA_N;
   plane(13,L,roadMat,0,.012,C0);
   [-8,8].forEach(sx=>{
     box(3,.36,L,M({map:pave}),sx,.18,C0);
-    box(.3,.42,L,C(0xe7e3e9),sx-Math.sign(sx)*1.5,.21,C0);   // cordolo
+    // cemento grigio, non 0xe7e3e9: quel bianco quasi puro leggeva come una
+    // striscia di vernice tirata lungo la strada invece che come un cordolo
+    box(.3,.42,L,M({map:pave,color:0xb9b4b0}),sx-Math.sign(sx)*1.5,.21,C0);
     plane(.7,L,M({map:tenji.clone()}),sx,.375,C0);           // linea tattile
   });
 });
@@ -2663,7 +2668,10 @@ const FIUME_G=(()=>{
      Il muro e' anche cio' che impedisce di cadere in acqua. */
   [-1,1].forEach(k=>{
     const zb=FIUME.z+k*FIUME.sem;
-    const muro=box(L,3.6,.9,M({map:cementoTex}),0,FIUME.fondo+1.8,zb+k*.45,g);
+    // la sponda deve arrivare dal fondale al cordolo: l'altezza si ricava,
+    // non si scrive, o approfondendo il canale resterebbe un gradino nel vuoto
+    const HSP=-FIUME.fondo+.25;
+    const muro=box(L,HSP,.9,M({map:cementoTex}),0,FIUME.fondo+HSP/2,zb+k*.45,g);
     muro.receiveShadow=true;
     box(L,.34,1.5,M({map:pave}),0,.15,zb+k*1.2,g);          // cordolo/camminamento
     /* Via l'inferiata di paletti e corrimano che correva per tutti i
@@ -2697,7 +2705,7 @@ const FIUME_G=(()=>{
     m.layers.enable(1);g.add(m);minori.push({t,mat});
     [-1,1].forEach(k=>{                                            // sponde
       const bx=a.x+k*(a.sem+.45);
-      box(.9,2.6,L,M({map:cementoTex}),bx,FIUME.fondo+1.9,C0,g);
+      box(.9,-FIUME.fondo+.6,L,M({map:cementoTex}),bx,FIUME.fondo+(-FIUME.fondo+.6)/2,C0,g);
       box(1.5,.34,L,M({map:pave}),a.x+k*(a.sem+1.2),.15,C0,g);
       GROUND.addPlat(a.x+k*(a.sem+1.2),C0,1.5,L,.32);
       // nemmeno sugli affluenti: dal ciglio ci si puo' buttare
@@ -3941,6 +3949,20 @@ const FOGNA={x:3.2, zTombino:12, zFiume:FIUME.z-FIUME.sem+1.5, y:-4.2, semi:1.9,
   for(let i=0;i<5;i++)
     box(.5,.07,.07,C(0x8f8a84),FOGNA.x-.55,-.5-i*.5,pz,g);
   GROUND.addPlat(FOGNA.x,pz,1.9,1.9,.02);
+  /* Pietrisco attorno alla bocca: e' il segno che l'asfalto e' stato aperto e
+     richiuso, e toglie al tombino l'aria di essere stato incollato li'. */
+  for(let i=0;i<38;i++){
+    const a=Math.random()*6.283, r=1.15+Math.random()*.75;
+    const s2=.05+Math.random()*.09;
+    const q=new THREE.Mesh(new THREE.DodecahedronGeometry(s2,0),
+      C([0x8d8578,0x9c948a,0x7a736a,0xa8a096][i%4]));
+    q.position.set(FOGNA.x+Math.cos(a)*r,.02+s2*.4,pz+Math.sin(a)*r);
+    q.rotation.set(Math.random()*3,Math.random()*3,Math.random()*3);
+    q.castShadow=true;g.add(q);
+  }
+  // e una toppa d'asfalto piu' scura, rappezzata
+  const toppa=new THREE.Mesh(new THREE.CircleGeometry(2.1,20),C(0x6e6a72));
+  toppa.rotation.x=-Math.PI/2;toppa.position.set(FOGNA.x,.016,pz);g.add(toppa);
 
   // il coperchio sollevato, appoggiato di taglio contro il cordolo
   const cop=new THREE.Mesh(new THREE.CylinderGeometry(1.0,1.0,.09,24),
@@ -4118,6 +4140,7 @@ function updatePonteMobile(dt){
    Si sale e si scende con F stando vicino. */
 const GUIDA={su:false, kmh:0};
 const NUOTO={on:false};
+const SOTT={on:false};   // camera sotto il pelo dell'acqua
 function saliScendiAuto(){
   const p=player.position, a=AUTO.g.position;
   if(!GUIDA.su){
@@ -4219,6 +4242,24 @@ function updateGame(dt){
   G.time+=dt*G.speedDay;
   if(G.time>=1){G.time=0;G.day++;toast('Giorno '+G.day);}
   applyDay();
+  /* Sott'acqua.
+     Quando la camera scende sotto il pelo, la nebbia diventa densa e verde-blu
+     e il fondo scena con lei: e' il solo modo di far leggere l'immersione senza
+     un secondo passaggio di composizione. La nebbia normale la riscrive
+     applyDay a ogni frame, quindi va sovrascritta DOPO di lei, non prima. */
+  {
+    const c=camera.position;
+    const giu=dentroAcqua(c.x,c.z)&&c.y<FIUME.y;
+    if(giu){
+      const prof=Math.max(0,FIUME.y-c.y);
+      scene.fog.color.setRGB(.055,.16,.20).multiplyScalar(Math.max(.25,1-prof*.07));
+      scene.fog.near=.4;scene.fog.far=Math.max(12,34-prof*2.2);
+      scene.background.copy(scene.fog.color);
+    }else{
+      scene.fog.near=58;scene.fog.far=380;
+    }
+    SOTT.on=giu;
+  }
   righello();
 
   // azione vicina
@@ -4678,8 +4719,19 @@ function tick(){
       if(player.position.y<fondale){player.position.y=fondale;NUOTO.vy=0;}
       if(player.position.y>pelo){player.position.y=pelo;NUOTO.vy=Math.min(0,NUOTO.vy);}
       NUOTO.giu=pelo-player.position.y;                 // quanto si e' immersi
-      playerH.hips.rotation.x=.5+Math.sin(clock.elapsedTime*2.6)*.07;
-      playerH.headP.rotation.x=-.4;
+      /* Nuotata vera: il corpo si stende in orizzontale e le braccia girano.
+         Con l'inclinazione di mezzo radiante di prima si restava sostanzialmente
+         in piedi dentro l'acqua, che e' la cosa che si vedeva sbagliata. */
+      const b=clock.elapsedTime*2.9;
+      playerH.hips.rotation.x=1.36+Math.sin(b)*.06;
+      playerH.headP.rotation.x=-.85;
+      playerH.armL.rotation.x=-1.6+Math.sin(b)*2.5;
+      playerH.armR.rotation.x=-1.6+Math.sin(b+Math.PI)*2.5;
+      playerH.elbL.rotation.x=-.5;playerH.elbR.rotation.x=-.5;
+      playerH.legL.rotation.x=Math.sin(b*1.5)*.35;
+      playerH.legR.rotation.x=-Math.sin(b*1.5)*.35;
+      playerH.kneeL.rotation.x=-Math.abs(Math.sin(b*1.5))*.5;
+      playerH.kneeR.rotation.x=-Math.abs(Math.cos(b*1.5))*.5;
     }else{
       /* Fuori dall'acqua: se sotto non c'e' appoggio si CADE con la gravita'.
          Prima la quota inseguiva dolcemente il suolo, quindi buttandosi dal
@@ -4708,14 +4760,18 @@ function tick(){
     player.visible=false;
   }else{
     player.visible=true;
-    const dist=5.6,h=3.1;
+    /* Nuotando la camera scende con chi nuota: con lo scarto di tre metri
+       restava sopra il pelo mentre il personaggio era a tre metri sotto, e del
+       fondale non si vedeva niente. Piu' bassa e piu' vicina anche perche'
+       sott'acqua la nebbia e' densa e da lontano non si distingue nulla. */
+    const dist=NUOTO.on?3.4:5.6, h=NUOTO.on?.75:3.1;
     const want=new THREE.Vector3(
       player.position.x-Math.sin(yaw)*dist,
       player.position.y+h-pitch*4.5,
       player.position.z-Math.cos(yaw)*dist);
     camPos.lerp(want,1-Math.pow(.0018,dt));
     camera.position.copy(camPos);
-    camera.lookAt(player.position.x,player.position.y+1.45+pitch*3,player.position.z);
+    camera.lookAt(player.position.x,player.position.y+(NUOTO.on?.35:1.45)+pitch*3,player.position.z);
   }
   sun.position.set(player.position.x+30,sunH,player.position.z-16);
   sun.target.position.copy(player.position);
