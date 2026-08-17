@@ -3184,7 +3184,13 @@ function failQuest(msg){
 
 /* ---------- azione di contesto ---------- */
 let nearNpc=null;
-$act.addEventListener('click',()=>{if(nearNpc&&!G.talking)talkTo(nearNpc);});
+$act.addEventListener('click',()=>{
+  // il pulsante fa quello che dice: guidando si scende, vicino all'auto si sale
+  const vicino=Math.hypot(player.position.x-AUTO.g.position.x,
+                          player.position.z-AUTO.g.position.z)<3.6;
+  if(GUIDA.su||vicino){saliScendiAuto();return;}
+  if(nearNpc&&!G.talking)talkTo(nearNpc);
+});
 addEventListener('keydown',e=>{if(e.code==='KeyE'&&nearNpc&&!G.talking)talkTo(nearNpc);
   else if(e.code==='Space'&&G.talking){if(!$ch.children.length)nextLine();}});
 
@@ -3611,8 +3617,7 @@ function updatePonteMobile(dt){
    X e poi su Z, cosi' si striscia lungo un muro invece di incollarcisi.
    Si sale e si scende con F stando vicino. */
 const GUIDA={su:false, kmh:0};
-addEventListener('keydown',e=>{
-  if(e.code!=='KeyF')return;
+function saliScendiAuto(){
   const p=player.position, a=AUTO.g.position;
   if(!GUIDA.su){
     if(Math.hypot(p.x-a.x,p.z-a.z)>3.6){toast('avvicinati all\'auto');return;}
@@ -3624,7 +3629,8 @@ addEventListener('keydown',e=>{
     player.position.set(a.x+lat.x*2.2,a.y,a.z+lat.z*2.2);
     player.visible=true;toast('sei sceso');
   }
-});
+}
+addEventListener('keydown',e=>{ if(e.code==='KeyF')saliScendiAuto(); });
 
 function updateAuto(dt){
   const A=AUTO;
@@ -3690,7 +3696,18 @@ function updateGame(dt){
     const d=n.g.position.distanceTo(player.position);
     if(d<best){best=d;nearNpc=n;}
   });
-  if(nearNpc&&!G.talking){
+  /* Il comando dell'auto sta nello stesso posto di quello per parlare: un tasto
+     che non compare da nessuna parte non esiste per chi gioca. Guidando ha la
+     precedenza su tutto, perche' li' l'unica cosa che si puo' fare e' scendere. */
+  const vicinoAuto=Math.hypot(player.position.x-AUTO.g.position.x,
+                              player.position.z-AUTO.g.position.z)<3.6;
+  if(GUIDA.su){
+    $act.style.display='block';
+    $act.textContent=`F — SCENDI  ·  ${GUIDA.kmh.toFixed(0)} km/h`;
+  }else if(vicinoAuto&&!G.talking){
+    $act.style.display='block';
+    $act.textContent='F — GUIDA la kei car';
+  }else if(nearNpc&&!G.talking){
     $act.style.display='block';
     $act.textContent=(G.quest&&G.quest.to===nearNpc.id&&G.carrying)?`CONSEGNA a ${nearNpc.name}`:`PARLA con ${nearNpc.name}`;
   }else $act.style.display='none';
