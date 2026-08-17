@@ -434,9 +434,12 @@ const GROUND=(()=>{
     }
     insert(plats,{x0:cx-w/2,x1:cx+w/2,z0:cz-d/2,z1:cz+d/2,y});
   }
-  /** ostacolo verticale */
-  function addWall(cx,cz,w,d){
-    insert(walls,{x0:cx-w/2,x1:cx+w/2,z0:cz-d/2,z1:cz+d/2});
+  /** Ostacolo verticale. cima e' la quota oltre la quale non ferma piu': serve
+      perche' il mondo ha livelli sovrapposti e un muretto d'argine alto un metro
+      non deve fermare chi gli passa sopra sul viadotto a quattro metri.
+      Senza cima l'ostacolo e' infinito, che e' il caso di case e recinzioni. */
+  function addWall(cx,cz,w,d,cima,base){
+    insert(walls,{x0:cx-w/2,x1:cx+w/2,z0:cz-d/2,z1:cz+d/2,cima,base});
   }
 
   /** Quota del suolo calpestabile sotto un punto.
@@ -459,11 +462,15 @@ const GROUND=(()=>{
   }
 
   /** true se un cilindro di raggio r centrato qui tocca un muro */
-  function blocked(x,z,r){
+  function blocked(x,z,r,y){
     const c=cellOf(walls,x,z);
     if(!c)return false;
     for(let i=0;i<c.length;i++){
       const w=c[i];
+      if(y!==undefined){
+        if(w.cima!==undefined && y>=w.cima-.05)continue;   // ci si passa sopra
+        if(w.base!==undefined && y<=w.base-.05)continue;   // e anche sotto
+      }
       const nx=Math.max(w.x0,Math.min(x,w.x1));
       const nz=Math.max(w.z0,Math.min(z,w.z1));
       const dx=x-nx, dz=z-nz;
@@ -472,7 +479,16 @@ const GROUND=(()=>{
     return false;
   }
 
-  return {addPlat,addWall,heightAt,blocked,
+  /** Diagnostica: quali ostacoli coprono un punto. Serve per capire CHI blocca,
+      invece di indovinare guardando la scena. */
+  function muriIn(x,z){
+    const c=cellOf(walls,x,z)||[];
+    return c.filter(w=>x>=w.x0&&x<=w.x1&&z>=w.z0&&z<=w.z1)
+            .map(w=>({larghezza:+(w.x1-w.x0).toFixed(1),profondita:+(w.z1-w.z0).toFixed(1),
+                      centro:[+((w.x0+w.x1)/2).toFixed(1),+((w.z0+w.z1)/2).toFixed(1)],
+                      cima:w.cima===undefined?'infinita':w.cima}));
+  }
+  return {addPlat,addWall,heightAt,blocked,muriIn,
           stats:()=>({plats:plats.size,walls:walls.size})};
 })();
 
@@ -861,7 +877,9 @@ const signTex=CT(512,256,(x,w,h)=>{
     B.add(new THREE.BoxGeometry(3.6,.5,3.6),CONC,x,.25,Z);                    // plinto
     // appoggi in gomma sotto l'impalcato
     [-1,1].forEach(k=>B.add(new THREE.CylinderGeometry(.28,.28,.35,8),BLK,x,Y-1.9,Z+k*3.2));
-    GROUND.addWall(x,Z,3.6,3.6);
+    /* Le pile stanno SOTTO l'impalcato: la cima appena sotto la quota della
+       carreggiata, altrimenti fermano anche chi ci arriva sopra dal viadotto. */
+    GROUND.addWall(x,Z,3.6,3.6,EXPWY.y-.4);
   }
 
   // ---------------------------------------------------------------- spalle e sottopasso
@@ -869,7 +887,7 @@ const signTex=CT(512,256,(x,w,h)=>{
   [-1,1].forEach(k=>{
     const wx=k*(G+D/2);
     B.add(new THREE.BoxGeometry(D,Y-1.6,W+1.2),CONC,wx,(Y-1.6)/2,Z,0,0,0,3,3);
-    GROUND.addWall(wx,Z,D,W+1.2);
+    GROUND.addWall(wx,Z,D,W+1.2,EXPWY.y-.4);
     // muro d'ala che accompagna la strada in entrata e in uscita
     [-1,1].forEach(s=>{
       B.add(new THREE.BoxGeometry(1.0,4.2,7),CONC,k*(G+.5),2.1,Z+s*(W/2+3.4),0,0,0,1,2);
@@ -2342,23 +2360,25 @@ const WIDEN=0;                       // il quartiere storico resta com'era:
   STREET_SEGS.forEach(t=>GROUND.addPlat(t.x,t.z,t.w,t.d,t.y));
 
   // edifici della citta' generata
-  BUILDINGS.forEach(b=>GROUND.addWall(b.x,b.z,b.r*1.9,b.r*1.9));
+  BUILDINGS.forEach(b=>GROUND.addWall(b.x,b.z,b.r*1.9,b.r*1.9,(b.h||6)+2.4));
 
-  // case del quartiere storico: corpo piu' un margine per il giardinetto
+  /* Case: la cima e' l'altezza del corpo piu' il tetto. Serve dichiararla,
+     perche' il viadotto passa sopra i quartieri e con ostacoli di altezza
+     infinita ci si sbatteva contro camminando a nove metri da terra. */
   houses.forEach(h=>{
-    const [x,z,rot,w,d]=h;
+    const [x,z,rot,w,d,alt]=h;
     const horiz=Math.abs(Math.cos(rot))<.5;
-    GROUND.addWall(x,z,horiz?d:w,horiz?w:d);
+    GROUND.addWall(x,z,horiz?d:w,horiz?w:d,(alt||5.4)+2.2);
   });
 
   // muretti di cinta lungo la via principale
   const FW=10.2+WIDEN;
   [[-FW,-30,-3],[-FW,4,30],[FW,-30,-3],[FW,4,30]].forEach(([x,z0,z1])=>{
-    GROUND.addWall(x,(z0+z1)/2,.6,z1-z0);
+    GROUND.addWall(x,(z0+z1)/2,.6,z1-z0,1.8);        // muretto di cinta
   });
 
   // pali della luce e della corrente: piccoli ma si sentono addosso
-  for(let z=-30;z<=30;z+=12)GROUND.addWall(-8.9-WIDEN,z,.5,.5);
+  for(let z=-30;z<=30;z+=12)GROUND.addWall(-8.9-WIDEN,z,.5,.5,8);   // pali
 
   // props appoggiati: adesso che le quote esistono, si posano davvero
   GROUNDED.forEach(o=>{o.position.y=GROUND.heightAt(o.position.x,o.position.z);});
@@ -2546,7 +2566,10 @@ const FIUME_G=(()=>{
        una parete continua avrebbe murato la via principale sulle due rive,
        chiudendo il quartiere invece di collegarlo. */
     [[FIUME.da,-VIA_VARCO],[VIA_VARCO,FIUME.a]].forEach(([x0,x1])=>
-      GROUND.addWall((x0+x1)/2,zb+k*.62,x1-x0,.5));
+      /* base sotto il pelo dell'acqua: la barriera trattiene chi cammina sul
+         cordolo, ma non chi sta nuotando nel canale — altrimenti chi ci cade
+         resta chiuso dentro senza via d'uscita. */
+      GROUND.addWall((x0+x1)/2,zb+k*.62,x1-x0,.5,1.2,-.15));
   });
 
   /* Il ponte stradale che stava qui e' sparito: la traversata del fiume ora e'
@@ -2571,7 +2594,7 @@ const FIUME_G=(()=>{
       box(.9,2.6,L,M({map:cementoTex}),bx,FIUME.fondo+1.9,C0,g);
       box(1.5,.34,L,M({map:pave}),a.x+k*(a.sem+1.2),.15,C0,g);
       GROUND.addPlat(a.x+k*(a.sem+1.2),C0,1.5,L,.32);
-      GROUND.addWall(a.x+k*(a.sem+.45),C0,.9,L);
+      GROUND.addWall(a.x+k*(a.sem+.45),C0,.9,L,1.2,-.15);   // argine
     });
   });
   return {g,acqua,schiuma,onda,glint,minori};
@@ -2639,9 +2662,15 @@ const PONTE_M=(function rampaEViadotto(){
   const P=REL.map(([dx,dz])=>[ARCO.x+dx+SCOSTA.x, ARCO.z+dz+SCOSTA.z]);
   /* La coda NON segue lo scostamento: resta cucita alla sopraelevata, che sta
      dove sta, e si ferma dentro il suo capo per non restare a sbalzo. */
-  const xF=P[P.length-1][0];
-  P.push([xF+3,EXPWY.z+26],[xF+9,EXPWY.z+9],[xF+18,EXPWY.z],
-         [Math.min(xF+34,EXPWY.to-24),EXPWY.z]);
+  /* La coda deve proseguire nello stesso verso. Scrivendo le sue z a partire da
+     EXPWY.z si finiva a mandarla PIU' A NORD dell'ultimo punto del tracciato:
+     il ponte tornava indietro su se stesso e nel gomito i parapetti di un tratto
+     tagliavano la carreggiata di quello dopo — li' non si passava piu'.
+     Ora si parte dall'ultimo punto e si scende verso la sopraelevata. */
+  const xF=P[P.length-1][0], zF=P[P.length-1][1];
+  const passo=(EXPWY.z-zF)/3;
+  P.push([xF+7, zF+passo],[xF+16, zF+passo*2],[xF+28, EXPWY.z],
+         [Math.min(xF+46,EXPWY.to-24),EXPWY.z]);
 
   const curva=new THREE.CatmullRomCurve3(
     P.map(p=>new THREE.Vector3(p[0],0,p[1])),false,'catmullrom',.35);
@@ -2745,8 +2774,10 @@ const PONTE_M=(function rampaEViadotto(){
        stacca da terra — passandoci attraverso si finiva sotto l'impalcato, da
        dove non si risale piu' perche' il gradino massimo e' mezzo metro. */
     if(c.y>.45)[-1,1].forEach(k=>{
-      const px=c.x+k*c.nx*(VIA.w/2+.1), pz=c.z+k*c.nz*(VIA.w/2+.1);
-      GROUND.addWall(px,pz,dx*1.3+.8,dz*1.3+.8);
+      // il parapetto sta FUORI dalla carreggiata, ed e' sottile: gonfiandolo
+      // sui tratti diagonali finiva a coprire la corsia
+      const px=c.x+k*c.nx*(VIA.w/2+.45), pz=c.z+k*c.nz*(VIA.w/2+.45);
+      GROUND.addWall(px,pz,Math.max(.5,dx*1.2),Math.max(.5,dz*1.2));
     });
   }
 
@@ -2761,7 +2792,10 @@ const PONTE_M=(function rampaEViadotto(){
       if(h>.6){
         B.add(new THREE.CylinderGeometry(.95,1.15,h,10),CONC,s.x,base+h/2,s.z,0,0,0,1,3);
         B.add(new THREE.BoxGeometry(3.4,.7,3.4),CONC,s.x,my-.72,s.z,0,yaw,0,1,1);
-        if(base===0)GROUND.addWall(s.x,s.z,2.2,2.2);
+        /* La pila NON si registra come ostacolo: sta sull'asse del ponte, e
+           blocked() non conosce le quote — un muro sotto l'impalcato e' un muro
+           anche sopra, e camminando sul ponte ci si sbatteva contro. Meglio
+           attraversare un pilastro al suolo che non poter passare il ponte. */
       }
     }
   }
@@ -2772,6 +2806,11 @@ const PONTE_M=(function rampaEViadotto(){
 /* La corrente: due lastre che scorrono a velocita' diverse nello stesso verso,
    piu' la schiuma di sponda che avanza piu' piano. Il disallineamento fra i due
    disegni fa il luccichio, e costa due somme per frame invece di uno shader. */
+/** true se il punto sta sopra uno specchio d'acqua: fiume grande o affluenti */
+function dentroAcqua(x,z){
+  if(z>FIUME.z-FIUME.sem&&z<FIUME.z+FIUME.sem&&x>FIUME.da&&x<FIUME.a)return true;
+  return AFFLUENTI.some(a=>x>a.x-a.sem&&x<a.x+a.sem&&z>a.da&&z<a.a);
+}
 let _dtFiume=.016;
 function updateFiume(t){
   // Water anima il proprio riflesso da questo uniform: e' il suo orologio
@@ -2779,6 +2818,7 @@ function updateFiume(t){
   FIUME_G.schiuma.forEach((s,i)=>{s.offset.x=-t*.014-i*.5;});
   FIUME_G.minori.forEach((m,i)=>{m.t.offset.y=-t*.02-i*.3;m.t.offset.x=Math.sin(t*.2)*.02;});
   updateTraghetto(_dtFiume,t);
+  updateBarchette(_dtFiume,t);
 
   /* L'onda: somma di tre seni con lunghezze e versi diversi. Una sola sinusoide
      legge come una lamiera ondulata che scorre; ne bastano tre incommensurabili
@@ -3428,12 +3468,67 @@ function traghetto(col,nome){
       {scale:.92+((i*37)%7)/40, testa:.98, spalle:.98+((i*13)%5)/50}));
     h.root.position.set(q[0],1.44,q[1]);
     h.root.rotation.y=q[1]>0?Math.PI:0;
-    g.add(h.root);gente.push(h);
+    h.userData0={z:q[1]};g.add(h.root);gente.push(h);
   });
 
   g.visible=false;scene.add(g);
   g.userData.gente=gente;
   return g;
+}
+
+/* Barche piccole: chiatte da lavoro e barche a remi che stanno sul canale
+   anche quando il ponte e' chiuso. Passano sotto l'impalcato alzato o gli
+   girano attorno, e danno al fiume l'aria di essere usato. */
+function barchetta(tipo,col){
+  const g=new THREE.Group();
+  const L=tipo==='chiatta'?11:5.2, B=tipo==='chiatta'?3.4:1.7;
+  const SC=M({map:wood,color:col});
+  const scafo=new THREE.Mesh(new THREE.SphereGeometry(1,14,8,0,6.284,Math.PI/2,Math.PI/2),SC);
+  scafo.scale.set(B/2,tipo==='chiatta'?.72:.55,L/2);scafo.castShadow=true;g.add(scafo);
+  const orlo=new THREE.Mesh(new THREE.TorusGeometry(1,.05,6,20),SC);
+  orlo.rotation.x=Math.PI/2;orlo.scale.set(B/2,L/2,1);orlo.position.y=.02;g.add(orlo);
+  const fondo=new THREE.Mesh(new THREE.CircleGeometry(1,16),C(0x7a5c3e));
+  fondo.rotation.x=-Math.PI/2;fondo.scale.set(B/2.2,L/2.2,1);fondo.position.y=-.14;g.add(fondo);
+  if(tipo==='chiatta'){
+    box(B-.5,.5,4.4,C(0x9a8f78),0,.12,-1.4,g);              // carico di sabbia
+    box(1.6,1.3,1.5,C(0xe6e0d2),0,.85,3.6,g);               // cabina di poppa
+    box(.7,.5,.05,new THREE.MeshBasicMaterial({color:0xffe6b0}),0,.95,2.85,g).castShadow=false;
+    cyl(.06,.06,2.2,C(0xd8d4cc),0,1.4,4.2,5,g);
+  }else{
+    [-.9,.8].forEach(z=>box(B-.15,.06,.2,SC,0,-.02,z,g));   // panche
+    [-1,1].forEach(k=>{                                      // remi appoggiati
+      const r=cyl(.03,.03,2.0,SC,k*.5,.1,-.2,6,g);r.rotation.z=k*.5;r.rotation.x=.1;
+    });
+    const pesc=makeHuman({skin:0xf2cfae,skinCss:'#f2cfae',eye:'#5a4632',
+      top:0xa8b8a0,bottom:0x4a4f5e,hair:0x3a2f2c,hat:0xdcd2b8,scale:.9});
+    pesc.root.position.set(0,-.05,.6);pesc.root.rotation.y=Math.PI;g.add(pesc.root);
+    g.userData.gente=[pesc];
+    cyl(.02,.02,2.6,C(0x8a7a5c),.3,.9,-.6,4,g).rotation.z=-.6;   // canna da pesca
+  }
+  scene.add(g);return g;
+}
+
+const BARCHETTE=(()=>{
+  const l=[];
+  [['chiatta',0x8a7a5c,-52,1],['remi',0xb08050,18,-1],['remi',0xa8734a,-118,1],
+   ['chiatta',0x7d6f56,96,-1],['remi',0xbb9060,-16,1]].forEach(([t,c,x0,v],i)=>{
+    const g=barchetta(t,c);
+    l.push({g,x:x0,v,sp:(t==='chiatta'?1.5:1.0)*v,off:(i%2?1:-1)*(5+i*2.4)});
+  });
+  return l;
+})();
+
+function updateBarchette(dt,t){
+  BARCHETTE.forEach((b,i)=>{
+    b.x+=b.sp*dt;
+    if(b.x>FIUME.a-20)b.x=FIUME.da+20;
+    if(b.x<FIUME.da+20)b.x=FIUME.a-20;
+    b.g.position.set(b.x, FIUME.y-.12+Math.sin(t*1.4+i)*.05, FIUME.z+b.off);
+    b.g.rotation.y=b.sp>0?Math.PI/2:-Math.PI/2;
+    b.g.rotation.z=Math.sin(t*1.1+i*2)*.035;
+    b.g.rotation.x=Math.sin(t*1.7+i)*.02;
+    (b.g.userData.gente||[]).forEach(h=>h.pose(t*.8+i,.05));
+  });
 }
 
 const TRAGHETTI=(()=>{
@@ -3459,9 +3554,18 @@ function updateTraghetto(dt,t){
   g.rotation.z=Math.sin(t*.9)*.02;
   g.rotation.x=Math.sin(t*1.5)*.012;
   // i passeggeri respirano e si guardano intorno, o sembrano statue
+  /* Meta' dei passeggeri passeggia avanti e indietro lungo la coperta, l'altra
+     meta' sta al parapetto a guardare fuori. Tutti fermi leggevano come statue. */
   (g.userData.gente||[]).forEach((h,i)=>{
-    h.pose(t*1.05+i*1.7,.05);
-    h.headP.rotation.y=Math.sin(t*.5+i)*.5;
+    if(i%2===0){
+      const s2=Math.sin(t*.32+i*1.3);
+      h.root.position.z=h.userData0.z+s2*3.4;
+      h.root.rotation.y=Math.cos(t*.32+i*1.3)>0?0:Math.PI;
+      h.pose(t*3.1+i,.85);                       // cammina
+    }else{
+      h.pose(t*1.05+i*1.7,.06);                  // fermo, ma respira
+      h.headP.rotation.y=Math.sin(t*.5+i)*.5;
+    }
   });
   if(Math.abs(T.x)>80){g.visible=false;T.attivo=null;return false;}
   return true;
@@ -3617,6 +3721,7 @@ function updatePonteMobile(dt){
    X e poi su Z, cosi' si striscia lungo un muro invece di incollarcisi.
    Si sale e si scende con F stando vicino. */
 const GUIDA={su:false, kmh:0};
+const NUOTO={on:false};
 function saliScendiAuto(){
   const p=player.position, a=AUTO.g.position;
   if(!GUIDA.su){
@@ -3659,8 +3764,8 @@ function updateAuto(dt){
     const px=A.g.position.x, pz=A.g.position.z, py=A.g.position.y;
     const nx=px+dir.x*A.v*dt, nz=pz+dir.z*A.v*dt;
     let mx=px, mz=pz;
-    if(!GROUND.blocked(nx,pz,1.1)&&GROUND.heightAt(nx,pz,py)-py<=.55)mx=nx;
-    if(!GROUND.blocked(mx,nz,1.1)&&GROUND.heightAt(mx,nz,py)-py<=.55)mz=nz;
+    if(!GROUND.blocked(nx,pz,1.1,py)&&GROUND.heightAt(nx,pz,py)-py<=.55)mx=nx;
+    if(!GROUND.blocked(mx,nz,1.1,py)&&GROUND.heightAt(mx,nz,py)-py<=.55)mz=nz;
     if(mx===px&&mz===pz)A.v*=.2;                   // ha sbattuto
     A.g.position.x=mx;A.g.position.z=mz;
     const gy=GROUND.heightAt(mx,mz,py);
@@ -4088,7 +4193,8 @@ function tick(){
   let ix=move.x,iz=move.y;
   if(G.talking){ix=0;iz=0;}
   if(keys['KeyW'])iz-=1;if(keys['KeyS'])iz+=1;if(keys['KeyA'])ix-=1;if(keys['KeyD'])ix+=1;
-  const len=Math.hypot(ix,iz), sp=running?6.6:3.2;
+  // nuotando si va molto piu' piano, e correre non serve
+  const len=Math.hypot(ix,iz), sp=NUOTO.on?1.5:(running?6.6:3.2);
   if(len>.08){
     const k=Math.max(len,1),nx=ix/k,nz=iz/k,s=Math.sin(yaw),c=Math.cos(yaw);
     // La camera guarda lungo avanti=(sin yaw, cos yaw); la destra della camera e'
@@ -4111,8 +4217,10 @@ function tick(){
 
     // assi separati: contro un muro si scivola invece di incastrarsi
     let mx=px, mz=pz;
-    if(!GROUND.blocked(tx,pz,PLAYER_R)&&GROUND.heightAt(tx,pz,py)-py<=STEP_UP)mx=tx;
-    if(!GROUND.blocked(mx,tz,PLAYER_R)&&GROUND.heightAt(mx,tz,py)-py<=STEP_UP)mz=tz;
+    // nuotando si sale di piu': le sponde di cemento vanno scavalcate
+    const SALTO=NUOTO.on?2.2:STEP_UP;
+    if(!GROUND.blocked(tx,pz,PLAYER_R,py)&&GROUND.heightAt(tx,pz,py)-py<=SALTO)mx=tx;
+    if(!GROUND.blocked(mx,tz,PLAYER_R,py)&&GROUND.heightAt(mx,tz,py)-py<=SALTO)mz=tz;
     player.position.x=mx;player.position.z=mz;
 
     walkT+=dt*(running?13:8.5);
@@ -4121,10 +4229,27 @@ function tick(){
   }else walkT*=.85;
 
   // il personaggio segue la quota del suolo: sale sui cordoli, non li attraversa
+  /* Nuoto.
+     Se si finisce dentro il canale — cadendo dal ponte — non si affonda: si
+     galleggia al pelo dell'acqua e ci si muove piu' lentamente. Uscire e'
+     possibile perche' mentre si nuota il gradino massimo sale a due metri:
+     senza, le sponde di cemento sarebbero una trappola da cui non si risale. */
   if(!GUIDA.su){
-    const gy=GROUND.heightAt(player.position.x,player.position.z,player.position.y);
-    player.position.y+=(gy-player.position.y)*Math.min(1,dt*14);
+    const px=player.position.x, pz=player.position.z;
+    const suolo=GROUND.heightAt(px,pz,player.position.y);
+    NUOTO.on=dentroAcqua(px,pz)&&player.position.y<.35&&suolo<.35;
+    const gy=NUOTO.on?FIUME.y+.30:suolo;
+    player.position.y+=(gy-player.position.y)*Math.min(1,dt*(NUOTO.on?3.4:14));
     if(Math.abs(gy-player.position.y)<.004)player.position.y=gy;
+    if(NUOTO.on){
+      // bracciata: busto inclinato in avanti e ondeggio col pelo dell'acqua
+      playerH.hips.rotation.x=.42+Math.sin(clock.elapsedTime*2.6)*.06;
+      playerH.headP.rotation.x=-.34;
+      player.position.y+=Math.sin(clock.elapsedTime*1.8)*.03;
+    } else if(playerH.hips.rotation.x!==0){
+      playerH.hips.rotation.x*=.8;playerH.headP.rotation.x*=.8;
+      if(Math.abs(playerH.hips.rotation.x)<.01){playerH.hips.rotation.x=0;playerH.headP.rotation.x=0;}
+    }
   }
   playerH.pose(walkT, len>.08?1:.08);
 
